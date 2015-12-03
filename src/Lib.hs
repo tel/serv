@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -14,16 +15,19 @@ module Lib where
 import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Control.Monad.Trans.Either
+import           Data.Maybe
 import           Data.Proxy
 import           Data.String
 import           Data.Text (Text)
 import           GHC.TypeLits
+import           Network.HTTP.Media (MediaType)
 import           Network.HTTP.Types (HeaderName)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Network.HTTP.Media as Media
+import qualified Network.HTTP.Types.Header as Header
 import qualified Network.Wai as Wai
 
 data ContentType where
@@ -48,10 +52,15 @@ data API ty where
 
   CaptureSeg :: Symbol -> ty -> API ty
   CaptureHeader :: Symbol -> ty -> API ty
-  CaptureFlag :: Symbol -> API ty
-  CaptureParam :: Symbol -> ty -> API ty
   CaptureBody :: [ContentType] -> ty -> API ty
   CaptureContext :: API ty
+
+  -- These two are elided for the moment as we're not using query strings yet;
+  -- they're not terrifically hard to implement, though.
+  --
+  --
+  -- CaptureFlag :: Symbol -> API ty
+  -- CaptureParam :: Symbol -> ty -> API ty
 
   (:>) :: API ty -> API ty -> API ty
   OneOf :: [API ty] -> API ty
@@ -98,7 +107,7 @@ fromByteString s = case Text.decodeUtf8' s of
 
 
 class HasMediaType ty where
-  mediaType :: Proxy ty -> Media.MediaType
+  mediaType :: Proxy ty -> MediaType
 
 class HasMediaType ty => MimeEncode ty val where
   mimeEncode :: Proxy ty -> val -> S.ByteString
@@ -114,6 +123,7 @@ data a :& b = a :& b
 data RoutingErr
   = ENotFound
   | EBadRequest (Maybe String)
+  | EUnsupportedMediaType
 
 -- | An ignorable error is one which backtracks the routing search
 -- instead of forcing a response.
@@ -130,10 +140,15 @@ data Context =
   , pathZipper :: ([Text], [Text])
   , headersExpected :: [(HeaderName, Maybe Text)]
   , config :: Config
+
     -- cached via strictRequestBody so that we don't have to deal with multiple
     -- request body pulls affecting one another; this defeats partial and lazy body
     -- loading, BUT the style of API description we're talking about here isn't really
     -- amenable to that sort of thing anyway.
+    --
+    -- also note that we really need to compute this using Lazy IO; otherwise,
+    -- we'll have to be handling the partial request/respond dance from the get-go.
+
   , body :: S.ByteString
   }
 
@@ -154,14 +169,20 @@ stepContext ctx =
   where
     (hind, fore) = pathZipper ctx
 
--- | Pull a header value from the context, updating it to note that we looked
-examineHeader :: URIDecode a => HeaderName -> Context -> (Context, Maybe (Either String a))
-examineHeader name ctx =
-  (newContext, fromByteString <$> lookup name headers )
+-- | Pull a Header raw from the context, updating it to note that we looked
+pullHeaderRaw :: HeaderName -> Context -> (Context, Maybe S.ByteString)
+pullHeaderRaw name ctx =
+  (newContext, lookup name headers)
   where
     newContext = ctx { headersExpected = (name, Nothing) : headersExpected ctx }
     headers = Wai.requestHeaders req
     req = request ctx
+
+-- | Pull a header value from the context, updating it to note that we looked
+examineHeader :: URIDecode a => HeaderName -> Context -> (Context, Maybe (Either String a))
+examineHeader name ctx =
+  (newContext, fromByteString <$> rawString )
+  where (newContext, rawString) = pullHeaderRaw name ctx
 
 -- | Match a header value in the context, updating it to show that we looked
 expectHeader :: HeaderName -> Text -> Context -> (Context, Bool)
@@ -304,24 +325,42 @@ instance Handling api => Handling ('CaptureContext ':> api) where
 
 
 
-instance Handling api => Handling ('CaptureBody cts ty ':> api) where
+instance (ContentMatching cts ty, Handling api) => Handling ('CaptureBody cts ty ':> api) where
 
   type Impl ('CaptureBody cts ty ':> api) m =
     ty -> Impl api m
 
   handle Proxy impl = Server $ do
-    continue undefined
+    (newContext, maybeHeader) <- asks $ pullHeaderRaw Header.hContentType
+    let header = fromMaybe "application/octet-stream" maybeHeader
+    reqBody <- asks body
+    case Media.mapContentMedia matches header of
+      Nothing -> throwError EUnsupportedMediaType
+      Just decoder -> case decoder reqBody of
+        Left err -> throwError $ EBadRequest (Just err)
+        Right val -> local (const newContext) (continue val)
 
     where
+      matches = contentMatch (Proxy :: Proxy cts)
       continue = runServer . handle (Proxy :: Proxy api) . impl
 
-  -- CaptureBody :: [ContentType] -> ty -> API ty
-
-  -- CaptureFlag :: Symbol -> API ty
-  -- CaptureParam :: Symbol -> ty -> API ty
-
   -- Endpoint :: [Response ty] -> API ty
-  -- Raw :: API ty
+
+
+-- Type-level Util
+
+class ContentMatching cts ty where
+  contentMatch :: Proxy cts -> [(MediaType, S.ByteString -> Either String ty)]
+
+instance ContentMatching '[] ty where
+  contentMatch Proxy = []
+
+instance (MimeDecode ct ty, ContentMatching cts ty) => ContentMatching (ct ': cts) ty where
+  contentMatch Proxy =
+    (mtype, decode) : contentMatch (Proxy :: Proxy cts)
+    where
+      mtype = mediaType (Proxy :: Proxy ct)
+      decode = mimeDecode (Proxy :: Proxy ct)
 
 
 -- Types
