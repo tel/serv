@@ -12,18 +12,15 @@
 
 module Serv.Internal.Api where
 
-import           Serv.Internal.Qualifier
+import GHC.TypeLits
 import           Serv.Internal.Response
 
 data Api ty where
-
-
   (:>) :: ApiQualifier ty -> Api ty -> Api ty
   OneOf :: [Api ty] -> Api ty
 
   Endpoint :: [Method ty] -> Api ty
 
-  --
   --   Raw :: Api ty
   --
   --
@@ -41,3 +38,19 @@ data Api ty where
   --   Server IO -> Wai.Application
   --
   -- since it can just "hook in" the new application when needed.
+
+data ApiQualifier ty where
+  Seg :: Symbol -> ApiQualifier ty
+  MatchHeader :: Symbol -> Symbol -> ApiQualifier ty
+
+  CaptureSeg :: Symbol -> ty -> ApiQualifier ty
+  CaptureHeader :: Symbol -> ty -> ApiQualifier ty
+  CaptureBody :: [ContentType] -> ty -> ApiQualifier ty
+  CaptureContext :: ApiQualifier ty
+
+  -- These two are elided for the moment as we're not using query strings yet;
+  -- they're not terrifically hard to implement, though.
+  --
+  --
+  -- CaptureFlag :: Symbol -> Api ty
+  -- CaptureParam :: Symbol -> ty -> Api ty

@@ -10,7 +10,6 @@ maintainer:          example@example.com
 copyright:           2010 Author Here
 category:            Web
 build-type:          Simple
--- extra-source-files:
 cabal-version:       >=1.10
 
 library
@@ -18,11 +17,10 @@ library
   exposed-modules:
     Serv.Example
     Serv.Internal.Api
-    Serv.Internal.ContentType
     Serv.Internal.HList
     Serv.Internal.Header
     Serv.Internal.Interpretation
-    Serv.Internal.Qualifier
+    Serv.Internal.RawText
     Serv.Internal.Response
     Serv.Internal.Server
     Serv.Internal.Server.Config

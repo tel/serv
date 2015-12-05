@@ -1,38 +1,36 @@
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE GADTs     #-}
-{-# LANGUAGE ScopedTypeVariables     #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
 
 module Serv.Internal.Server where
 
 import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Control.Monad.Trans.Either
+import qualified Data.ByteString              as S
 import           Data.Maybe
 import           Data.Proxy
 import           Data.String
 import           GHC.TypeLits
-import           Network.HTTP.Media (MediaType)
-import qualified Data.ByteString as S
-import qualified Network.HTTP.Media as Media
-import qualified Network.HTTP.Types.Header as Header
-import qualified Network.Wai as Wai
-
+import           Network.HTTP.Media           (MediaType)
+import qualified Network.HTTP.Media           as Media
+import qualified Network.HTTP.Types.Header    as Header
+import qualified Network.Wai                  as Wai
 import           Serv.Internal.Api
-import           Serv.Internal.Qualifier
-import           Serv.Internal.Response
 import           Serv.Internal.Interpretation
-import           Serv.Internal.Server.Error (RoutingError)
-import qualified Serv.Internal.Server.Error as Error
+import           Serv.Internal.Response
 import           Serv.Internal.Server.Context (Context)
 import qualified Serv.Internal.Server.Context as Context
+import           Serv.Internal.Server.Error   (RoutingError)
+import qualified Serv.Internal.Server.Error   as Error
 
 data FailServer = FailServer
 data a :<|> b = a :<|> b

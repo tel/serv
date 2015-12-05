@@ -4,12 +4,7 @@
 module Serv.Example where
 
 import Serv.Internal.Api
-import Serv.Internal.Qualifier
 import Serv.Internal.Response
-import Serv.Internal.ContentType
-
-
-
 
 
 -- Types
@@ -37,7 +32,7 @@ type UserResponses
   = '[ 'Method
        'GET
        '[ 'ResponseHeader "ETag" String ]
-       ('Body '[ 'ContentType JSON 0 ] User)
+       ('Body '[ 'As JSON ] User)
 
      , 'Method 'DELETE '[] 'NoBody
      ]
@@ -47,5 +42,5 @@ type LogOutResponses
   = '[ 'Method
        'GET
        '[]
-       ('Body '[ 'ContentType JSON 0 ] User)
+       ('Body '[ 'As JSON ] User)
      ]

@@ -1,17 +1,18 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE KindSignatures      #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE PolyKinds           #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 
 module Serv.Internal.Header where
 
-import qualified Data.ByteString      as S
-import           Data.CaseInsensitive (CI)
 import           Data.Proxy
 import           Data.String
 import           GHC.TypeLits
+import qualified Network.HTTP.Types.Header as Header
 
 -- This is a GHC 8 feature. It won't work today because we
 -- cannot promote a GADT the way that we'd like to. Otherwise,
@@ -441,7 +442,17 @@ data Name where
   --     WWW-Authenticate: Basic
   WWWAuthenticate :: Name
 
-class ReflectName (n :: Name) where reflectName :: proxy n -> CI S.ByteString
+-- | Implements reflection of 'Name' types into 'Header.HeaderName' values for runtime use.
+class ReflectName (n :: Name) where
+  reflectName :: proxy n -> Header.HeaderName
+
+
+-- ReflectName Instances
+--
+-- A very verbose way of matching on lots of simple types. Not really worth
+-- your time reading. Heavy potential for bugs.
+-- ----------------------------------------------------------------------------
+
 
 instance KnownSymbol s => ReflectName ('Name s) where
   reflectName _ = fromString (symbolVal (Proxy :: Proxy s))

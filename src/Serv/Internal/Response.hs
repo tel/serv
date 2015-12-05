@@ -13,15 +13,11 @@
 module Serv.Internal.Response where
 
 import           Data.Proxy
-import           Data.String
 import           Data.Tagged
-import qualified Data.Text.Encoding           as Text
 import           GHC.TypeLits
-import qualified Network.HTTP.Types           as HTTP
+import qualified Network.HTTP.Types        as HTTP
 
-import           Serv.Internal.ContentType
 import           Serv.Internal.HList
-import           Serv.Internal.Interpretation
 
 data Verb
   = GET
@@ -31,6 +27,10 @@ data Verb
   | DELETE
 
 data ResponseHeader ty = ResponseHeader Symbol ty
+
+-- | Kind indicating the use of a type as a MIME Content Type specification.
+data ContentType where
+  As :: ty -> ContentType
 
 data ResponseBody ty where
   Body :: [ContentType] -> ty -> ResponseBody ty
@@ -57,11 +57,6 @@ type family HeaderImpl hs where
 -- Reflection
 -- ----------------------------------------------------------------------------
 
-reflectHeader :: forall a sym . (HeaderEncode a, KnownSymbol sym) => Tagged sym a -> HTTP.Header
-reflectHeader (Tagged v) =
-  let headerName = fromString (symbolVal (Proxy :: Proxy sym))
-      headerValue = Text.encodeUtf8 (headerEncode v)
-  in (headerName, headerValue)
 
 -- class ReflectHeaders ls where
 --   reflectHeaders :: HList ls -> [HTTP.Header]
