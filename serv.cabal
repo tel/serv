@@ -15,13 +15,25 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Lib
+  exposed-modules:
+    Serv.Example
+    Serv.Internal.Api
+    Serv.Internal.ContentType
+    Serv.Internal.HList
+    Serv.Internal.Interpretation
+    Serv.Internal.Qualifier
+    Serv.Internal.Response
+    Serv.Internal.Server
+    Serv.Internal.Server.Config
+    Serv.Internal.Server.Context
+    Serv.Internal.Server.Error
   build-depends:       base >= 4.7 && < 5
                      , bytestring
                      , either
                      , http-media
                      , http-types
                      , mtl
+                     , tagged
                      , text
                      , transformers
                      , wai
