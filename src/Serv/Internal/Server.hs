@@ -9,7 +9,6 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE GADTs     #-}
 {-# LANGUAGE ScopedTypeVariables     #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Serv.Internal.Server where
 
@@ -19,15 +18,9 @@ import           Control.Monad.Trans.Either
 import           Data.Maybe
 import           Data.Proxy
 import           Data.String
-import           Data.Tagged
-import           Data.Text (Text)
 import           GHC.TypeLits
 import           Network.HTTP.Media (MediaType)
-import           Network.HTTP.Types (HeaderName, Status)
-import qualified Network.HTTP.Types as HTTP
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Char8 as S8
-import qualified Data.Text.Encoding as Text
 import qualified Network.HTTP.Media as Media
 import qualified Network.HTTP.Types.Header as Header
 import qualified Network.Wai as Wai
@@ -35,7 +28,6 @@ import qualified Network.Wai as Wai
 import           Serv.Internal.Api
 import           Serv.Internal.Qualifier
 import           Serv.Internal.Response
-import           Serv.Internal.ContentType
 import           Serv.Internal.Interpretation
 import           Serv.Internal.Server.Error (RoutingError)
 import qualified Serv.Internal.Server.Error as Error
@@ -76,6 +68,14 @@ class Handling (api :: Api *) where
 -- Handling APIs
 -- ----------------------------------------------------------------------------
 
+-- Auto handle OPTIONS and CORS?
+--
+-- > The Allow entity-header field lists the set of methods supported
+--   by the resource identified by the Request-URI. The purpose of this
+--   field is strictly to inform the recipient of valid methods
+--   associated with the resource. An Allow header field MUST be
+--   present in a 405 (Method Not Allowed) response.
+
 instance Handling ('Endpoint '[]) where
 
   type Impl ('Endpoint '[]) m =
@@ -102,7 +102,7 @@ instance
 
       where
 
-        goHere = undefined
+        goHere = undefined m
 
 instance Handling ('OneOf '[]) where
 

@@ -1,46 +1,32 @@
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE GADTs     #-}
-{-# LANGUAGE ScopedTypeVariables     #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE PolyKinds                  #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE TypeOperators              #-}
 
 module Serv.Internal.Server.Context where
 
-import           Control.Monad.Except
-import           Control.Monad.Reader
-import           Control.Monad.Trans.Either
-import           Data.Maybe
-import           Data.Proxy
-import           Data.String
-import           Data.Tagged
-import           Data.Text (Text)
-import           GHC.TypeLits
-import           Network.HTTP.Media (MediaType)
-import           Network.HTTP.Types (HeaderName, Status)
-import qualified Network.HTTP.Types as HTTP
-import qualified Data.ByteString as S
-import qualified Data.ByteString.Char8 as S8
-import qualified Data.Text.Encoding as Text
-import qualified Network.HTTP.Media as Media
-import qualified Network.HTTP.Types.Header as Header
-import qualified Network.Wai as Wai
+import qualified Data.ByteString              as S
+import           Data.Text                    (Text)
+import qualified Network.Wai                  as Wai
 
-import           Serv.Internal.Server.Config
+import           Network.HTTP.Types.Header    (HeaderName)
 import           Serv.Internal.Interpretation
+import           Serv.Internal.Server.Config
 
 data Context =
   Context
-  { request :: Wai.Request
-  , pathZipper :: ([Text], [Text])
+  { request         :: Wai.Request
+  , pathZipper      :: ([Text], [Text])
   , headersExpected :: [(HeaderName, Maybe Text)]
-  , config :: Config
+  , config          :: Config
 
     -- cached via strictRequestBody so that we don't have to deal with multiple
     -- request body pulls affecting one another; this defeats partial and lazy body
@@ -50,7 +36,7 @@ data Context =
     -- also note that we really need to compute this using Lazy IO; otherwise,
     -- we'll have to be handling the partial request/respond dance from the get-go.
 
-  , body :: S.ByteString
+  , body            :: S.ByteString
   }
 
 -- | Pop a segment off the URI and produce a new context for "beyond" that segment

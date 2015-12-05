@@ -20,6 +20,7 @@ library
     Serv.Internal.Api
     Serv.Internal.ContentType
     Serv.Internal.HList
+    Serv.Internal.Header
     Serv.Internal.Interpretation
     Serv.Internal.Qualifier
     Serv.Internal.Response
@@ -29,6 +30,7 @@ library
     Serv.Internal.Server.Error
   build-depends:       base >= 4.7 && < 5
                      , bytestring
+                     , case-insensitive
                      , either
                      , http-media
                      , http-types

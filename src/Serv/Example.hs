@@ -1,6 +1,12 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Serv.Example where
 
+import Serv.Internal.Api
+import Serv.Internal.Qualifier
+import Serv.Internal.Response
+import Serv.Internal.ContentType
 
 
 
@@ -9,11 +15,11 @@ module Serv.Example where
 -- Types
 -- ----------------------------------------------------------------------------
 
--- data JSON
+data JSON
 
--- data User = User { userName :: String }
+data User = User { userName :: String }
 
--- newtype LogOutTime = LogOutTime Int
+newtype LogOutTime = LogOutTime Int
 
 
 
@@ -21,25 +27,25 @@ module Serv.Example where
 -- Example
 -- ----------------------------------------------------------------------------
 
--- type TheApi
---   = 'OneOf
---     '[ 'Seg "log-out" ':> 'Endpoint LogOutResponses
---      , 'Seg "user"    ':> 'Endpoint UserResponses
---      ]
+type TheApi
+  = 'OneOf
+    '[ 'Seg "log-out" ':> 'Endpoint LogOutResponses
+     , 'Seg "user"    ':> 'Endpoint UserResponses
+     ]
 
--- type UserResponses
---   = '[ 'Method
---        'GET
---        '[ 'ResponseHeader "ETag" S.ByteString ]
---        ('Body '[ 'ContentType JSON 0 ] User)
+type UserResponses
+  = '[ 'Method
+       'GET
+       '[ 'ResponseHeader "ETag" String ]
+       ('Body '[ 'ContentType JSON 0 ] User)
 
---      , 'Method 'DELETE '[] 'NoBody
---      ]
+     , 'Method 'DELETE '[] 'NoBody
+     ]
 
 
--- type LogOutResponses
---   = '[ 'Method
---        'GET
---        '[]
---        ('Body '[ 'ContentType JSON 0 ] User)
---      ]
+type LogOutResponses
+  = '[ 'Method
+       'GET
+       '[]
+       ('Body '[ 'ContentType JSON 0 ] User)
+     ]
