@@ -20,12 +20,12 @@ library
     Serv.Internal.HList
     Serv.Internal.Header
     Serv.Internal.Interpretation
-    Serv.Internal.RawText
     Serv.Internal.Response
     Serv.Internal.Server
     Serv.Internal.Server.Config
     Serv.Internal.Server.Context
     Serv.Internal.Server.Error
+    Serv.Internal.Server.Type
   build-depends:       base >= 4.7 && < 5
                      , bytestring
                      , case-insensitive

@@ -29,8 +29,7 @@ type TheApi
      ]
 
 type UserResponses
-  = '[ 'Method
-       'GET
+  = '[ 'Method 'GET
        '[ 'ResponseHeader "ETag" String ]
        ('Body '[ 'As JSON ] User)
 

@@ -14,7 +14,6 @@ module Serv.Internal.Server where
 
 import           Control.Monad.Except
 import           Control.Monad.Reader
-import           Control.Monad.Trans.Either
 import qualified Data.ByteString              as S
 import           Data.Maybe
 import           Data.Proxy
@@ -23,38 +22,26 @@ import           GHC.TypeLits
 import           Network.HTTP.Media           (MediaType)
 import qualified Network.HTTP.Media           as Media
 import qualified Network.HTTP.Types.Header    as Header
-import qualified Network.Wai                  as Wai
 import           Serv.Internal.Api
 import           Serv.Internal.Interpretation
 import           Serv.Internal.Response
 import           Serv.Internal.Server.Context (Context)
 import qualified Serv.Internal.Server.Context as Context
-import           Serv.Internal.Server.Error   (RoutingError)
 import qualified Serv.Internal.Server.Error   as Error
+import           Serv.Internal.Server.Type
 
-data FailServer = FailServer
-data a :<|> b = a :<|> b
-
-newtype Server m =
-  Server
-  { runServer :: ReaderT Context (EitherT RoutingError m) Wai.Response }
-
--- | Run a server to its roots
-rootServer :: Context -> Server m -> m (Either RoutingError Wai.Response)
-rootServer ctx = runEitherT . flip runReaderT ctx . runServer
-
-orElse :: Monad m => Server m -> Server m -> Server m
-orElse a b = Server $ do
-  ctx <- ask
-  va <- lift (lift (rootServer ctx a))
-  case va of
-    Left Error.NotFound -> runServer b
-    Left _ -> runServer a -- all other errors can be ignored (?)
-    Right _ -> runServer a
 
 
 -- Handling
 -- ----------------------------------------------------------------------------
+
+-- | The the core type function responsible for interpreting an 'Api' into a
+-- functioning 'Server'. It defines a function 'handle' defined over all forms
+-- of 'Api' types which consumes a parallel type defined by the associated
+-- type family 'Impl'. If @api :: Api@ then @Impl api m@ is an "implementation"
+-- of the 'Api''s server logic executing in the @m@ monad. Then, applying
+-- 'handle' to a value of @'Impl' api@ results in a 'Server' which can be
+-- executed as a 'Wai.Application'.
 
 class Handling (api :: Api *) where
   type Impl api (m :: * -> *)
@@ -63,7 +50,7 @@ class Handling (api :: Api *) where
 
 
 
--- Handling APIs
+-- Handling Endpoints
 -- ----------------------------------------------------------------------------
 
 -- Auto handle OPTIONS and CORS?
@@ -77,10 +64,10 @@ class Handling (api :: Api *) where
 instance Handling ('Endpoint '[]) where
 
   type Impl ('Endpoint '[]) m =
-    m FailServer
+    m NotHere
 
   handle Proxy m = Server $ do
-    FailServer <- lift (lift m)
+    NotHere <- lift (lift m)
     throwError Error.NotFound
 
 instance
@@ -102,23 +89,26 @@ instance
 
         goHere = undefined m
 
+
+
+-- Handling Choice
+-- ----------------------------------------------------------------------------
+
 instance Handling ('OneOf '[]) where
+  type Impl ('OneOf '[]) m = NotHere
+  handle Proxy NotHere = Server (throwError Error.NotFound)
 
-  type Impl ('OneOf '[]) m =
-    FailServer
+instance
+  (Handling api, Handling ('OneOf apis)) =>
+    Handling ('OneOf (api ': apis))
+  where
+    type Impl ('OneOf (api ': apis)) m =
+      Impl api m :<|> Impl ('OneOf apis) m
 
-  handle Proxy FailServer = Server (throwError Error.NotFound)
-
-instance (Handling api, Handling ('OneOf apis)) => Handling ('OneOf (api ': apis)) where
-
-  type Impl ('OneOf (api ': apis)) m =
-     Impl api m :<|> Impl ('OneOf apis) m
-
-  handle Proxy (impl :<|> impls) =
-    handle (Proxy :: Proxy api) impl
-    `orElse`
-    handle (Proxy :: Proxy ('OneOf apis)) impls
-
+    handle Proxy (impl :<|> impls) =
+      handle (Proxy :: Proxy api) impl
+      `orElse`
+      handle (Proxy :: Proxy ('OneOf apis)) impls
 
 
 
