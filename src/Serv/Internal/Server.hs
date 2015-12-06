@@ -47,7 +47,7 @@ import Data.Text (Text)
 -- 'handle' to a value of @'Impl' api@ results in a 'Server' which can be
 -- executed as a 'Wai.Application'.
 
-class Handling (api :: Api *) where
+class Handling (api :: k) where
   type Impl api (m :: * -> *)
   handle :: Monad m => Proxy api -> Impl api m -> Server m
 
@@ -66,57 +66,23 @@ class Handling (api :: Api *) where
 --   present in a 405 (Method Not Allowed) response.
 
 
+instance Handling ('[] :: [Method *]) where
+  type Impl ('[] :: [Method *]) m = m NotHere
+  handle = undefined
 
-type family EndpointImpl methods m where
-  EndpointImpl '[] m = m NotHere
-  EndpointImpl ('Method verb headers body ': rs) m =
-    m (Response headers body) :<|> EndpointImpl rs m
-
-class VerbsOf methods where
-  verbsOf :: Proxy methods -> Set Verb
-
-instance VerbsOf '[] where
-  verbsOf Proxy = Set.empty
-
-instance
-  (ReflectVerb verb, VerbsOf methods) =>
-    VerbsOf ('Method verb headers body ': methods)
-  where
-    verbsOf Proxy =
-      Set.insert
-      (reflectVerb (Proxy :: Proxy verb))
-      (verbsOf (Proxy :: Proxy methods))
-
-class HeadersOf methods where
-  headersOf :: Proxy methods -> Set HTTP.HeaderName
-
-instance HeadersOf '[] where
-  headersOf Proxy = Set.empty
-
-instance
-  (HeadersOf methods) =>
-    HeadersOf ('Method verb '[] body ': methods)
-  where
-    headersOf Proxy = headersOf (Proxy :: Proxy methods)
-
-instance
-  (HeadersOf ('Method verb headers body ': methods), Header.ReflectName name) =>
-    HeadersOf ('Method verb ( '(name, ty) ': headers) body ': methods)
-  where
-    headersOf Proxy =
-      Set.insert
-      (Header.reflectName (Proxy :: Proxy name))
-      (headersOf (Proxy :: Proxy ('Method verb headers body ': methods)))
-
+instance Handling ('Method verb headers body ': rs :: [Method *]) where
+  type Impl ('Method verb headers body ': rs) m =
+    m (Response headers body) :<|> Impl rs m
+  handle = undefined
 
 
 instance
-  (HeadersOf methods, VerbsOf methods) =>
+  (HeadersOf methods, VerbsOf methods, Handling methods) =>
     Handling ('Endpoint methods)
   where
 
     type Impl ('Endpoint methods) m =
-      EndpointImpl methods m
+      Impl methods m
 
     handle Proxy impl = Server $ do
       pathIsEmpty <- asks Context.pathIsEmpty
@@ -129,12 +95,19 @@ instance
           | method == HTTP.methodOptions ->
             return (defaultOptionsResponse verbs headers requestHeaders)
 
+          | verbMatch verbs method ->
+            runServer (handle (Proxy :: Proxy methods) impl)
+
           | otherwise ->
             throwError $ Error.MethodNotAllowed (Set.toList verbs)
 
       where
         verbs = verbsOf (Proxy :: Proxy methods)
         headers = headersOf (Proxy :: Proxy methods)
+
+verbMatch :: Set Verb -> S.ByteString -> Bool
+verbMatch verbs methodname =
+  methodname `Set.member` Set.map (fromString . show) verbs
 
 defaultOptionsResponse
   :: Set Verb -> Set HTTP.HeaderName -> Set HTTP.HeaderName -> Wai.Response
@@ -325,6 +298,8 @@ instance Handling api => Handling ('CaptureWildcard ':> api) where
 -- Type-level Computations
 -- ----------------------------------------------------------------------------
 
+
+
 class ContentMatching cts ty where
   contentMatch :: Proxy cts -> [(MediaType, S.ByteString -> Either String ty)]
 
@@ -343,3 +318,43 @@ instance
       where
         mtype = mediaType (Proxy :: Proxy ct)
         decode = mimeDecode (Proxy :: Proxy ct)
+
+
+
+class VerbsOf methods where
+  verbsOf :: Proxy methods -> Set Verb
+
+instance VerbsOf '[] where
+  verbsOf Proxy = Set.empty
+
+instance
+  (ReflectVerb verb, VerbsOf methods) =>
+    VerbsOf ('Method verb headers body ': methods)
+  where
+    verbsOf Proxy =
+      Set.insert
+      (reflectVerb (Proxy :: Proxy verb))
+      (verbsOf (Proxy :: Proxy methods))
+
+
+
+class HeadersOf methods where
+  headersOf :: Proxy methods -> Set HTTP.HeaderName
+
+instance HeadersOf '[] where
+  headersOf Proxy = Set.empty
+
+instance
+  (HeadersOf methods) =>
+    HeadersOf ('Method verb '[] body ': methods)
+  where
+    headersOf Proxy = headersOf (Proxy :: Proxy methods)
+
+instance
+  (HeadersOf ('Method verb headers body ': methods), Header.ReflectName name) =>
+    HeadersOf ('Method verb ( '(name, ty) ': headers) body ': methods)
+  where
+    headersOf Proxy =
+      Set.insert
+      (Header.reflectName (Proxy :: Proxy name))
+      (headersOf (Proxy :: Proxy ('Method verb headers body ': methods)))
