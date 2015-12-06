@@ -1,24 +1,27 @@
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE GADTs     #-}
-{-# LANGUAGE ScopedTypeVariables     #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
 
 module Serv.Internal.Api where
 
-import GHC.TypeLits
+import           GHC.TypeLits
+import qualified Serv.Internal.Header   as Header
 import           Serv.Internal.Response
+
+data Method ty where
+  Method :: Verb -> [(Header.Name, ty)] -> ResponseBody ty -> Method ty
 
 data Api ty where
   (:>) :: ApiQualifier ty -> Api ty -> Api ty
   OneOf :: [Api ty] -> Api ty
-
   Endpoint :: [Method ty] -> Api ty
 
   --   Raw :: Api ty

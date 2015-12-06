@@ -14,9 +14,7 @@ module Serv.Internal.Response where
 
 import           Data.Proxy
 import           Data.Tagged
-import           GHC.TypeLits
-import qualified Network.HTTP.Types        as HTTP
-
+import qualified Network.HTTP.Types  as HTTP
 import           Serv.Internal.HList
 
 data Verb
@@ -25,8 +23,7 @@ data Verb
   | PUT
   | PATCH
   | DELETE
-
-data ResponseHeader ty = ResponseHeader Symbol ty
+    deriving ( Eq, Ord, Show, Read )
 
 -- | Kind indicating the use of a type as a MIME Content Type specification.
 data ContentType where
@@ -35,9 +32,6 @@ data ContentType where
 data ResponseBody ty where
   Body :: [ContentType] -> ty -> ResponseBody ty
   NoBody :: ResponseBody ty
-
-data Method ty where
-  Method :: Verb -> [ResponseHeader ty] -> ResponseBody ty -> Method ty
 
 data Response headers body where
   ResponseWithBody
@@ -49,7 +43,7 @@ data Response headers body where
 
 type family HeaderImpl hs where
   HeaderImpl '[] = '[]
-  HeaderImpl ('ResponseHeader sym ty ': hs) = Tagged sym ty ': HeaderImpl hs
+  HeaderImpl ( '( name, ty ) ': hs ) = Tagged name ty ': HeaderImpl hs
 
 
 
@@ -78,23 +72,11 @@ type family HeaderImpl hs where
 --   waiResponse (ResponseNoBody status headers) =
 --     Wai.responseLBS status (reflectHeaders headers) ""
 
-class ReflectVerbs methods where
-  reflectVerbs :: Proxy methods -> [Verb]
+class ReflectVerb (v :: Verb) where
+  reflectVerb :: Proxy v -> Verb
 
-instance ReflectVerbs '[] where
-  reflectVerbs Proxy = []
-
-instance ReflectVerbs methods => ReflectVerbs ('Method 'GET hdrs body ': methods) where
-  reflectVerbs Proxy = GET : reflectVerbs (Proxy :: Proxy methods)
-
-instance ReflectVerbs methods => ReflectVerbs ('Method 'POST hdrs body ': methods) where
-  reflectVerbs Proxy = POST : reflectVerbs (Proxy :: Proxy methods)
-
-instance ReflectVerbs methods => ReflectVerbs ('Method 'PUT hdrs body ': methods) where
-  reflectVerbs Proxy = PUT : reflectVerbs (Proxy :: Proxy methods)
-
-instance ReflectVerbs methods => ReflectVerbs ('Method 'PATCH hdrs body ': methods) where
-  reflectVerbs Proxy = PATCH : reflectVerbs (Proxy :: Proxy methods)
-
-instance ReflectVerbs methods => ReflectVerbs ('Method 'DELETE hdrs body ': methods) where
-  reflectVerbs Proxy = DELETE : reflectVerbs (Proxy :: Proxy methods)
+instance ReflectVerb 'GET where reflectVerb Proxy = GET
+instance ReflectVerb 'POST where reflectVerb Proxy = POST
+instance ReflectVerb 'PUT where reflectVerb Proxy = PUT
+instance ReflectVerb 'PATCH where reflectVerb Proxy = PATCH
+instance ReflectVerb 'DELETE where reflectVerb Proxy = DELETE

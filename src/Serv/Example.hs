@@ -5,6 +5,7 @@ module Serv.Example where
 
 import Serv.Internal.Api
 import Serv.Internal.Response
+import qualified Serv.Internal.Header as Header
 
 
 -- Types
@@ -30,7 +31,7 @@ type TheApi
 
 type UserResponses
   = '[ 'Method 'GET
-       '[ 'ResponseHeader "ETag" String ]
+       '[ '(Header.ETag, String) ]
        ('Body '[ 'As JSON ] User)
 
      , 'Method 'DELETE '[] 'NoBody

@@ -12,6 +12,8 @@
 
 module Serv.Internal.Server where
 
+import qualified Data.Set as Set
+import           Data.Set (Set)
 import           Control.Monad.Except
 import           Control.Monad.Reader
 import qualified Data.ByteString              as S
@@ -21,15 +23,16 @@ import           Data.String
 import           GHC.TypeLits
 import           Network.HTTP.Media           (MediaType)
 import qualified Network.HTTP.Media           as Media
-import qualified Network.HTTP.Types.Header    as Header
+import qualified Network.HTTP.Types as HTTP
 import           Serv.Internal.Api
 import           Serv.Internal.Interpretation
 import           Serv.Internal.Response
+import qualified Serv.Internal.Header as Header
 import           Serv.Internal.Server.Context (Context)
 import qualified Serv.Internal.Server.Context as Context
 import qualified Serv.Internal.Server.Error   as Error
 import           Serv.Internal.Server.Type
-
+import qualified Network.Wai as Wai
 
 
 -- Handling
@@ -61,33 +64,113 @@ class Handling (api :: Api *) where
 --   associated with the resource. An Allow header field MUST be
 --   present in a 405 (Method Not Allowed) response.
 
-instance Handling ('Endpoint '[]) where
 
-  type Impl ('Endpoint '[]) m =
-    m NotHere
 
-  handle Proxy m = Server $ do
-    NotHere <- lift (lift m)
-    throwError Error.NotFound
+type family EndpointImpl methods m where
+  EndpointImpl '[] m = m NotHere
+  EndpointImpl ('Method verb headers body ': rs) m =
+    m (Response headers body) :<|> EndpointImpl rs m
+
+class VerbsOf methods where
+  verbsOf :: Proxy methods -> Set Verb
+
+instance VerbsOf '[] where
+  verbsOf Proxy = Set.empty
 
 instance
-  Handling ('Endpoint methods) =>
-    Handling ('Endpoint ('Method verb headers body ': methods))
+  (ReflectVerb verb, VerbsOf methods) =>
+    VerbsOf ('Method verb headers body ': methods)
+  where
+    verbsOf Proxy =
+      Set.insert
+      (reflectVerb (Proxy :: Proxy verb))
+      (verbsOf (Proxy :: Proxy methods))
 
+class HeadersOf methods where
+  headersOf :: Proxy methods -> Set HTTP.HeaderName
+
+instance HeadersOf '[] where
+  headersOf Proxy = Set.empty
+
+instance
+  (HeadersOf methods) =>
+    HeadersOf ('Method verb '[] body ': methods)
+  where
+    headersOf Proxy = headersOf (Proxy :: Proxy methods)
+
+instance
+  (HeadersOf ('Method verb headers body ': methods), Header.ReflectName name) =>
+    HeadersOf ('Method verb ( '(name, ty) ': headers) body ': methods)
+  where
+    headersOf Proxy =
+      Set.insert
+      (Header.reflectName (Proxy :: Proxy name))
+      (headersOf (Proxy :: Proxy ('Method verb headers body ': methods)))
+
+
+
+instance
+  (HeadersOf methods, VerbsOf methods) =>
+    Handling ('Endpoint methods)
   where
 
-    type Impl ('Endpoint ('Method verb headers body ': methods)) m =
-      m (Response headers body) :<|> Impl ('Endpoint methods) m
+    type Impl ('Endpoint methods) m =
+      EndpointImpl methods m
 
-    -- Very similar to the implementation of @Handling ('Choice apis)@
-    handle Proxy (m :<|> ms) =
-      goHere
-      `orElse`
-      handle (Proxy :: Proxy ('Endpoint methods)) ms
+    handle Proxy impl = Server $ do
+      pathIsEmpty <- asks Context.pathIsEmpty
+      when (not pathIsEmpty) (throwError Error.NotFound)
+      method <- asks Context.method
+      requestHeaders <- asks Context.requestHeadersSeen
+      case () of
+        ()
+
+          | method == HTTP.methodOptions ->
+            return (defaultOptionsResponse verbs headers requestHeaders)
+
+          | otherwise ->
+            throwError $ Error.MethodNotAllowed (Set.toList verbs)
 
       where
+        verbs = verbsOf (Proxy :: Proxy methods)
+        headers = headersOf (Proxy :: Proxy methods)
 
-        goHere = undefined m
+defaultOptionsResponse
+  :: Set Verb -> Set HTTP.HeaderName -> Set HTTP.HeaderName -> Wai.Response
+defaultOptionsResponse verbs _headers _requestHeaders =
+  Wai.responseLBS
+  HTTP.ok200
+  [("Allow", headerEncodeBS (Proxy :: Proxy 'Header.Allow) (Set.toList verbs))]
+  ""
+
+-- instance Handling ('Endpoint '[]) where
+
+--   type Impl ('Endpoint '[]) m =
+--     m NotHere
+
+--   handle Proxy m = Server $ do
+--     NotHere <- lift (lift m)
+--     throwError Error.NotFound
+
+-- instance
+--   Handling ('Endpoint methods) =>
+--     Handling ('Endpoint ('Method verb headers body ': methods))
+
+--   where
+
+--     type Impl ('Endpoint ('Method verb headers body ': methods)) m =
+--       m (Response headers body) :<|> Impl ('Endpoint methods) m
+
+--     -- Very similar to the implementation of @Handling ('Choice apis)@
+--     handle Proxy (m :<|> ms) =
+--       goHere
+--       `orElse`
+--       handle (Proxy :: Proxy ('Endpoint methods)) ms
+
+--       where
+
+--         goHere = undefined m
+
 
 
 
@@ -208,7 +291,7 @@ instance (ContentMatching cts ty, Handling api) => Handling ('CaptureBody cts ty
     ty -> Impl api m
 
   handle Proxy impl = Server $ do
-    (newContext, maybeHeader) <- asks $ Context.pullHeaderRaw Header.hContentType
+    (newContext, maybeHeader) <- asks $ Context.pullHeaderRaw HTTP.hContentType
     let header = fromMaybe "application/octet-stream" maybeHeader
     reqBody <- asks Context.body
     case Media.mapContentMedia matches header of

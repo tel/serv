@@ -14,10 +14,12 @@
 module Serv.Internal.Server.Context where
 
 import qualified Data.ByteString              as S
+import           Data.Set                     (Set)
+import qualified Data.Set                     as Set
 import           Data.Text                    (Text)
+import           Network.HTTP.Types
+import           Network.HTTP.Types           as HTTP
 import qualified Network.Wai                  as Wai
-
-import           Network.HTTP.Types.Header    (HeaderName)
 import           Serv.Internal.Interpretation
 import           Serv.Internal.Server.Config
 
@@ -25,7 +27,7 @@ data Context =
   Context
   { request         :: Wai.Request
   , pathZipper      :: ([Text], [Text])
-  , headersExpected :: [(HeaderName, Maybe Text)]
+  , headersExpected :: [(HTTP.HeaderName, Maybe Text)]
   , config          :: Config
 
     -- cached via strictRequestBody so that we don't have to deal with multiple
@@ -38,6 +40,17 @@ data Context =
 
   , body            :: S.ByteString
   }
+
+pathIsEmpty :: Context -> Bool
+pathIsEmpty ctx = case pathZipper ctx of
+  (_, []) -> True
+  _ -> False
+
+method :: Context -> HTTP.Method
+method = Wai.requestMethod . request
+
+requestHeadersSeen :: Context -> Set HTTP.HeaderName
+requestHeadersSeen = Set.fromList . map fst . headersExpected
 
 -- | Pop a segment off the URI and produce a new context for "beyond" that segment
 takeSegment :: Context -> (Context, Maybe Text)
@@ -57,7 +70,7 @@ stepContext ctx =
     (hind, fore) = pathZipper ctx
 
 -- | Pull a Header raw from the context, updating it to note that we looked
-pullHeaderRaw :: HeaderName -> Context -> (Context, Maybe S.ByteString)
+pullHeaderRaw :: HTTP.HeaderName -> Context -> (Context, Maybe S.ByteString)
 pullHeaderRaw name ctx =
   (newContext, lookup name headers)
   where
@@ -66,13 +79,13 @@ pullHeaderRaw name ctx =
     req = request ctx
 
 -- | Pull a header value from the context, updating it to note that we looked
-examineHeader :: URIDecode a => HeaderName -> Context -> (Context, Maybe (Either String a))
+examineHeader :: URIDecode a => HTTP.HeaderName -> Context -> (Context, Maybe (Either String a))
 examineHeader name ctx =
   (newContext, fromByteString <$> rawString )
   where (newContext, rawString) = pullHeaderRaw name ctx
 
 -- | Match a header value in the context, updating it to show that we looked
-expectHeader :: HeaderName -> Text -> Context -> (Context, Bool)
+expectHeader :: HTTP.HeaderName -> Text -> Context -> (Context, Bool)
 expectHeader name value ctx =
   (newContext, valOk)
 
