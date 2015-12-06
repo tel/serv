@@ -18,6 +18,8 @@ import           Serv.Internal.Response
 
 data Method ty where
   Method :: Verb -> [(Header.Name, ty)] -> ResponseBody ty -> Method ty
+  WithRequestBody :: [ContentType] -> ty -> Method ty -> Method ty
+  WithRequestHeaders :: [(Header.Name, ty)] -> Method ty -> Method ty
 
 data Api ty where
   (:>) :: ApiQualifier ty -> Api ty -> Api ty
@@ -44,12 +46,12 @@ data Api ty where
 
 data ApiQualifier ty where
   Seg :: Symbol -> ApiQualifier ty
-  MatchHeader :: Symbol -> Symbol -> ApiQualifier ty
+  MatchHeader :: Header.Name -> Symbol -> ApiQualifier ty
 
   CaptureSeg :: Symbol -> ty -> ApiQualifier ty
-  CaptureHeader :: Symbol -> ty -> ApiQualifier ty
-  CaptureBody :: [ContentType] -> ty -> ApiQualifier ty
+  CaptureHeader :: Header.Name -> ty -> ApiQualifier ty
   CaptureContext :: ApiQualifier ty
+  CaptureWildcard :: ApiQualifier ty
 
   -- These two are elided for the moment as we're not using query strings yet;
   -- they're not terrifically hard to implement, though.

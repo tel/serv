@@ -52,12 +52,16 @@ method = Wai.requestMethod . request
 requestHeadersSeen :: Context -> Set HTTP.HeaderName
 requestHeadersSeen = Set.fromList . map fst . headersExpected
 
+-- | Pop all remaining segments off the context
+takeAllSegments :: Context -> (Context, [Text])
+takeAllSegments ctx = (newContext, fore) where
+  newContext = ctx { pathZipper = (reverse fore ++ hind, []) }
+  (hind, fore) = pathZipper ctx
+
 -- | Pop a segment off the URI and produce a new context for "beyond" that segment
 takeSegment :: Context -> (Context, Maybe Text)
-takeSegment ctx =
-  (stepContext ctx, safeHead fore)
-  where
-    (_, fore) = pathZipper ctx
+takeSegment ctx = (stepContext ctx, safeHead fore) where
+  (_, fore) = pathZipper ctx
 
 -- | Move the context down the URI segment listing one step if possible.
 stepContext :: Context -> Context

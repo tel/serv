@@ -33,6 +33,7 @@ import qualified Serv.Internal.Server.Context as Context
 import qualified Serv.Internal.Server.Error   as Error
 import           Serv.Internal.Server.Type
 import qualified Network.Wai as Wai
+import Data.Text (Text)
 
 
 -- Handling
@@ -173,6 +174,26 @@ defaultOptionsResponse verbs _headers _requestHeaders =
 
 
 
+-- instance (ContentMatching cts ty, Handling api) => Handling ('CaptureBody cts ty ':> api) where
+
+--   type Impl ('CaptureBody cts ty ':> api) m =
+--     ty -> Impl api m
+
+--   handle Proxy impl = Server $ do
+--     (newContext, maybeHeader) <- asks $ Context.pullHeaderRaw HTTP.hContentType
+--     let header = fromMaybe "application/octet-stream" maybeHeader
+--     reqBody <- asks Context.body
+--     case Media.mapContentMedia matches header of
+--       Nothing -> throwError Error.UnsupportedMediaType
+--       Just decoder -> case decoder reqBody of
+--         Left err -> throwError $ Error.BadRequest (Just err)
+--         Right val -> local (const newContext) (continue val)
+
+--     where
+--       matches = contentMatch (Proxy :: Proxy cts)
+--       continue = runServer . handle (Proxy :: Proxy api) . impl
+
+
 
 -- Handling Choice
 -- ----------------------------------------------------------------------------
@@ -195,13 +216,11 @@ instance
 
 
 
-
-
 -- Handling Qualifiers
 -- ----------------------------------------------------------------------------
 
 instance
-  (KnownSymbol name, Handling api, URIDecode val) =>
+  (Header.ReflectName name, Handling api, URIDecode val) =>
     Handling ('CaptureHeader name val ':> api)
 
   where
@@ -218,10 +237,10 @@ instance
 
       where
         continue = runServer . handle (Proxy :: Proxy api) . impl
-        headerName = fromString (symbolVal (Proxy :: Proxy name))
+        headerName = (Header.reflectName (Proxy :: Proxy name))
 
 instance
-  (KnownSymbol name, KnownSymbol val, Handling api) =>
+  (Header.ReflectName name, KnownSymbol val, Handling api) =>
     Handling ('MatchHeader name val ':> api)
 
   where
@@ -230,14 +249,19 @@ instance
       Impl api m
 
     handle Proxy impl = Server $ do
-      (newContext, ok) <- asks $ Context.expectHeader (fromString headerName) (fromString headerValue)
+      (newContext, ok) <- asks
+                          $ Context.expectHeader
+                            headerName
+                            (fromString headerValue)
       if ok
         then local (const newContext) continue
-        else throwError (Error.BadRequest (Just $ "Header " ++ headerName ++ " expected to take value " ++ headerValue))
+        else throwError
+             (Error.BadRequest
+              (Just $ "Header " ++ show headerName ++ " expected to take value " ++ headerValue))
 
       where
         Server continue = handle (Proxy :: Proxy api) impl
-        headerName = symbolVal (Proxy :: Proxy name)
+        headerName = Header.reflectName (Proxy :: Proxy name)
         headerValue = symbolVal (Proxy :: Proxy val)
 
 
@@ -285,24 +309,16 @@ instance Handling api => Handling ('CaptureContext ':> api) where
     runServer (handle (Proxy :: Proxy api) (impl ctx))
 
 
-instance (ContentMatching cts ty, Handling api) => Handling ('CaptureBody cts ty ':> api) where
+instance Handling api => Handling ('CaptureWildcard ':> api) where
 
-  type Impl ('CaptureBody cts ty ':> api) m =
-    ty -> Impl api m
+  type Impl ('CaptureWildcard ':> api) m = [Text] -> Impl api m
 
   handle Proxy impl = Server $ do
-    (newContext, maybeHeader) <- asks $ Context.pullHeaderRaw HTTP.hContentType
-    let header = fromMaybe "application/octet-stream" maybeHeader
-    reqBody <- asks Context.body
-    case Media.mapContentMedia matches header of
-      Nothing -> throwError Error.UnsupportedMediaType
-      Just decoder -> case decoder reqBody of
-        Left err -> throwError $ Error.BadRequest (Just err)
-        Right val -> local (const newContext) (continue val)
+    ctx <- ask
+    let (newContext, path) = Context.takeAllSegments ctx
+    local (const newContext) (continue path)
 
-    where
-      matches = contentMatch (Proxy :: Proxy cts)
-      continue = runServer . handle (Proxy :: Proxy api) . impl
+    where continue = runServer . handle (Proxy :: Proxy api) . impl
 
 
 
