@@ -24,13 +24,13 @@ import           Serv.Internal.Verb
 -- Note: While this class allows the encoding of any value into a full Unicode
 -- Text value, Headers do not generally accept most Unicode code points. Be
 -- conservative in implementing this class.
-class HeaderEncode (n :: HeaderName) a where
+class ReflectName n => HeaderEncode (n :: HeaderName) a where
   headerEncode :: Proxy n -> a -> Text
 
 headerEncodeBS :: HeaderEncode n a => Proxy n -> a -> S.ByteString
 headerEncodeBS proxy = Text.encodeUtf8 . headerEncode proxy
 
-instance HeaderEncode (n :: HeaderName) RawText where
+instance ReflectName n => HeaderEncode (n :: HeaderName) RawText where
   headerEncode _ (RawText text) = text
 
 instance HeaderEncode 'Allow [Verb] where
@@ -41,7 +41,7 @@ instance HeaderEncode 'Allow [Verb] where
 --
 -- An instance of @Decode n t@ captures a mechanism for reading values of type
 -- @t@ from header data stored at header @n@.
-class HeaderDecode (n :: HeaderName) a where
+class ReflectName n => HeaderDecode (n :: HeaderName) a where
   headerDecode :: Proxy n -> Text -> Either String a
 
 headerDecodeBS :: HeaderDecode n a => Proxy n -> S.ByteString -> Either String a
@@ -50,7 +50,7 @@ headerDecodeBS proxy s = case Text.decodeUtf8' s of
   Right t -> headerDecode proxy t
 
 -- | 'RawText' enables capturing the data untouched from the header
-instance HeaderDecode n RawText where
+instance ReflectName n => HeaderDecode n RawText where
   headerDecode _ text = Right (RawText text)
 
 instance HeaderDecode 'Accept [Quality MediaType] where

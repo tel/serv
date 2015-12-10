@@ -12,7 +12,9 @@ module Serv.Internal.Header (
   ReflectHeaders (..),
   Rec (Nil), (-:),
   HeaderEncode (..),
-  HeaderDecode (..)
+  headerEncodeBS,
+  HeaderDecode (..),
+  headerDecodeBS
 
   ) where
 

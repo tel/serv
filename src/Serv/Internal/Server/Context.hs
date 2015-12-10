@@ -13,11 +13,13 @@
 module Serv.Internal.Server.Context where
 
 import qualified Data.ByteString             as S
+import           Data.Proxy
 import           Data.Set                    (Set)
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
 import qualified Network.HTTP.Types          as HTTP
 import qualified Network.Wai                 as Wai
+import qualified Serv.Internal.Header        as Header
 import           Serv.Internal.RawText
 import           Serv.Internal.Server.Config
 import qualified Serv.Internal.URI           as URI
@@ -82,14 +84,18 @@ pullHeaderRaw name ctx =
     req = request ctx
 
 -- | Pull a header value from the context, updating it to note that we looked
-examineHeader :: URI.URIDecode a => HTTP.HeaderName -> Context -> (Context, Maybe (Either String a))
-examineHeader name ctx =
-  (newContext, URI.fromByteString <$> rawString )
-  where (newContext, rawString) = pullHeaderRaw name ctx
+examineHeader
+  :: Header.HeaderDecode n a
+     => Proxy n -> Context -> (Context, Maybe (Either String a))
+examineHeader proxy ctx =
+  (newContext, Header.headerDecodeBS proxy <$> rawString)
+  where
+    headerName = Header.reflectName proxy
+    (newContext, rawString) = pullHeaderRaw headerName ctx
 
 -- | Match a header value in the context, updating it to show that we looked
-expectHeader :: HTTP.HeaderName -> Text -> Context -> (Context, Bool)
-expectHeader name value ctx =
+expectHeader :: Header.ReflectName n => Proxy n -> Text -> Context -> (Context, Bool)
+expectHeader proxy value ctx =
   (newContext, valOk)
 
   where
@@ -99,8 +105,9 @@ expectHeader name value ctx =
         Just (Left _) -> False
         Just (Right (RawText observation)) -> observation == value
 
-    mayVal = lookup name headers
-    newContext = ctx { headersExpected = (name, Just value) : headersExpected ctx }
+    headerName = Header.reflectName proxy
+    mayVal = lookup headerName headers
+    newContext = ctx { headersExpected = (headerName, Just value) : headersExpected ctx }
     headers = Wai.requestHeaders req
     req = request ctx
 

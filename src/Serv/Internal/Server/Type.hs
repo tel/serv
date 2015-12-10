@@ -73,6 +73,9 @@ orElse sa sb = Server $ \ctx -> do
       | otherwise -> return a
     _ -> return a
 
+routingError :: Monad m => RoutingError -> m ServerValue
+routingError err = return (RoutingError err)
+
 -- Responses
 -- ----------------------------------------------------------------------------
 

@@ -49,9 +49,9 @@ import qualified Serv.Internal.Verb as Verb
 -- 'handle' to a value of @'Impl' api@ results in a 'Server' which can be
 -- executed as a 'Wai.Application'.
 
-class Handling (api :: k) where
-  type Impl api (m :: * -> *)
-  handle :: Monad m => Proxy api -> Impl api m -> Server m
+class Handling (spec :: k) where
+  type Impl spec (m :: * -> *)
+  handle :: Monad m => Proxy spec -> Impl spec m -> Server m
 
 {-
 
@@ -63,21 +63,80 @@ TODO
 - [ ] 'CaptureBody ctypes value api
 - [ ] 'Raw
 
-- [ ] '[]
-- [ ] x ': xs
+- [X] '[]
+- [X] x ': xs
 
-- [ ] OneOf apis
+- [X] OneOf apis
 - [ ] Endpoint apis
 
-- [ ] Seg s :> api
-- [ ] HeaderAs name value :> api
+- [X] Seg s :> api
+- [X] HeaderAs name value :> api
 - [ ] Capture name value :> api
-- [ ] Header name value :> api
-- [ ] Wildcard :> api
+- [X] Header name value :> api
+- [X] Wildcard :> api
 - [ ] Flag name :> api
 - [ ] QueryParam name value :> api
 
 -}
+
+instance Handling '[] where
+  type Impl '[] m = m NotHere
+  handle _ m = Server $ \_ -> do
+    NotHere <- m
+    routingError Error.NotFound
+
+instance (Handling x, Handling xs) => Handling (x ': xs) where
+  type Impl (x ': xs) m = Impl x m :<|> Impl xs m
+  handle _ (l :<|> r) = lServer `orElse` rServer where
+    lServer = handle (Proxy :: Proxy x) l
+    rServer = handle (Proxy :: Proxy xs) r
+
+instance Handling apis => Handling ('OneOf apis) where
+  type Impl ('OneOf apis) m = Impl apis m
+  handle _ = handle (Proxy :: Proxy apis)
+
+instance (KnownSymbol s, Handling api) => Handling ('Seg s ':> api) where
+  type Impl ('Seg s ':> api) m = Impl api m
+  handle _ impl = Server $ \ctx -> do
+    let (ctx', m) = Context.takeSegment ctx
+        matchName = fromString (symbolVal (Proxy :: Proxy s))
+        next = handle (Proxy :: Proxy api) impl
+    case m of
+      Nothing -> routingError Error.NotFound
+      Just seg
+        | seg /= matchName -> routingError Error.NotFound
+        | otherwise -> runServer next ctx'
+
+instance Handling api => Handling ('Wildcard ':> api) where
+  type Impl ('Wildcard ':> api) m = [Text] -> Impl api m
+  handle _ f = Server $ \ctx -> do
+    let (ctx', segs) = Context.takeAllSegments ctx
+    runServer (handle (Proxy :: Proxy api) (f segs)) ctx'
+
+instance (Header.ReflectName n, KnownSymbol v, Handling api) => Handling ('HeaderAs n v ':> api) where
+  type Impl ('HeaderAs s v ':> api) m = Impl api m
+  handle _ impl = Server $ \ctx -> do
+    let headerProxy = Proxy :: Proxy n
+        headerValue = fromString (symbolVal (Proxy :: Proxy v))
+        next = handle (Proxy :: Proxy api) impl
+        (ctx', ok) = Context.expectHeader headerProxy headerValue ctx
+    if ok
+      then runServer next ctx'
+      else routingError Error.NotFound
+
+instance
+  (Header.HeaderDecode n v, Handling api) => Handling ('Header n v ':> api)
+  where
+    type Impl ('Header n v ':> api) m = Maybe v -> Impl api m
+    handle _ impl = Server $ \ctx -> do
+      let headerProxy = Proxy :: Proxy n
+          (ctx', m) = Context.examineHeader headerProxy ctx
+          next = handle (Proxy :: Proxy api) . impl
+      case m of
+        Nothing -> runServer (next Nothing) ctx'
+        Just (Left parseError) -> routingError (Error.BadRequest (Just parseError))
+        Just (Right value) -> runServer (next (Just value)) ctx'
+
 
 -- Handling Endpoints
 -- ----------------------------------------------------------------------------

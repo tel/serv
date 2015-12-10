@@ -3,8 +3,8 @@
 
 module Serv.Example where
 
-import Serv.Internal.Api
-import qualified Serv.Internal.Header as Header
+-- import Serv.Internal.Api
+-- import qualified Serv.Internal.Header as Header
 
 
 -- Types
