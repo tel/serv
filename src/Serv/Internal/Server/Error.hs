@@ -1,7 +1,7 @@
 
 module Serv.Internal.Server.Error where
 
-import Serv.Internal.Response
+import           Serv.Internal.Verb
 
 -- | Errors which arise during the "handling" portion of dealing with a response.
 data RoutingError

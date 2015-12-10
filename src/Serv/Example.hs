@@ -4,18 +4,17 @@
 module Serv.Example where
 
 import Serv.Internal.Api
-import Serv.Internal.Response
 import qualified Serv.Internal.Header as Header
 
 
 -- Types
 -- ----------------------------------------------------------------------------
 
-data JSON
+-- data JSON
 
-data User = User { userName :: String }
+-- data User = User { userName :: String }
 
-newtype LogOutTime = LogOutTime Int
+-- newtype LogOutTime = LogOutTime Int
 
 
 
@@ -23,24 +22,24 @@ newtype LogOutTime = LogOutTime Int
 -- Example
 -- ----------------------------------------------------------------------------
 
-type TheApi
-  = 'OneOf
-    '[ 'Seg "log-out" ':> 'Endpoint LogOutResponses
-     , 'Seg "user"    ':> 'Endpoint UserResponses
-     ]
+-- type TheApi
+--   = 'OneOf
+--     '[ 'Seg "log-out" ':> 'Endpoint LogOutResponses
+--      , 'Seg "user"    ':> 'Endpoint UserResponses
+--      ]
 
-type UserResponses
-  = '[ 'Method 'GET
-       '[ '(Header.ETag, String) ]
-       ('Body '[ 'As JSON ] User)
+-- type UserResponses
+--   = '[ 'Method 'GET
+--        '[ '(Header.ETag, String) ]
+--        ('Body '[ JSON ] User)
 
-     , 'Method 'DELETE '[] 'NoBody
-     ]
+--      , 'Method 'DELETE '[] 'NoBody
+--      ]
 
 
-type LogOutResponses
-  = '[ 'Method
-       'GET
-       '[]
-       ('Body '[ 'As JSON ] User)
-     ]
+-- type LogOutResponses
+--   = '[ 'Method
+--        'GET
+--        '[]
+--        ('Body '[ JSON ] User)
+--      ]

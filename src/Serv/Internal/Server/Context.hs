@@ -1,27 +1,26 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GADTs                      #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE PolyKinds                  #-}
-{-# LANGUAGE RankNTypes                 #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
 
 module Serv.Internal.Server.Context where
 
-import qualified Data.ByteString              as S
-import           Data.Set                     (Set)
-import qualified Data.Set                     as Set
-import           Data.Text                    (Text)
-import           Network.HTTP.Types
-import           Network.HTTP.Types           as HTTP
-import qualified Network.Wai                  as Wai
-import           Serv.Internal.Interpretation
+import qualified Data.ByteString             as S
+import           Data.Set                    (Set)
+import qualified Data.Set                    as Set
+import           Data.Text                   (Text)
+import qualified Network.HTTP.Types          as HTTP
+import qualified Network.Wai                 as Wai
+import           Serv.Internal.RawText
 import           Serv.Internal.Server.Config
+import qualified Serv.Internal.URI           as URI
 
 data Context =
   Context
@@ -83,9 +82,9 @@ pullHeaderRaw name ctx =
     req = request ctx
 
 -- | Pull a header value from the context, updating it to note that we looked
-examineHeader :: URIDecode a => HTTP.HeaderName -> Context -> (Context, Maybe (Either String a))
+examineHeader :: URI.URIDecode a => HTTP.HeaderName -> Context -> (Context, Maybe (Either String a))
 examineHeader name ctx =
-  (newContext, fromByteString <$> rawString )
+  (newContext, URI.fromByteString <$> rawString )
   where (newContext, rawString) = pullHeaderRaw name ctx
 
 -- | Match a header value in the context, updating it to show that we looked
@@ -95,7 +94,7 @@ expectHeader name value ctx =
 
   where
     valOk =
-      case fmap fromByteString mayVal of
+      case fmap URI.fromByteString mayVal of
         Nothing -> False
         Just (Left _) -> False
         Just (Right (RawText observation)) -> observation == value

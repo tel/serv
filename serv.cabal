@@ -19,13 +19,19 @@ library
     Serv.Internal.Api
     Serv.Internal.HList
     Serv.Internal.Header
-    Serv.Internal.Interpretation
-    Serv.Internal.Response
+    Serv.Internal.Header.Name
+    Serv.Internal.Header.Rec
+    Serv.Internal.Header.Serialization
+    Serv.Internal.MediaType
+    Serv.Internal.Pair
+    Serv.Internal.RawText
     Serv.Internal.Server
     Serv.Internal.Server.Config
     Serv.Internal.Server.Context
     Serv.Internal.Server.Error
     Serv.Internal.Server.Type
+    Serv.Internal.URI
+    Serv.Internal.Verb
   build-depends:       base >= 4.7 && < 5
                      , bytestring
                      , case-insensitive
