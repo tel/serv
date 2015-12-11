@@ -14,8 +14,8 @@ data Verb
   | DELETE
     deriving ( Eq, Ord, Show, Read )
 
-standardHeader :: Verb -> HTTP.Method
-standardHeader v = case v of
+standardName :: Verb -> HTTP.Method
+standardName v = case v of
   GET -> HTTP.methodGet
   POST -> HTTP.methodPost
   PUT -> HTTP.methodPut

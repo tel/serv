@@ -88,7 +88,7 @@ examineHeader
   :: Header.HeaderDecode n a
      => Proxy n -> Context -> (Context, Maybe (Either String a))
 examineHeader proxy ctx =
-  (newContext, Header.headerDecodeBS proxy <$> rawString)
+  (newContext, Header.headerDecodeRaw proxy <$> rawString)
   where
     headerName = Header.reflectName proxy
     (newContext, rawString) = pullHeaderRaw headerName ctx

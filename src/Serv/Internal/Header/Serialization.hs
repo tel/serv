@@ -27,10 +27,11 @@ import           Serv.Internal.Verb
 class ReflectName n => HeaderEncode (n :: HeaderName) a where
   headerEncode :: Proxy n -> a -> Text
 
-headerEncodeBS :: HeaderEncode n a => Proxy n -> a -> S.ByteString
-headerEncodeBS proxy = Text.encodeUtf8 . headerEncode proxy
+-- | Handles encoding a header all the way to /raw/ bytes.
+headerEncodeRaw :: HeaderEncode n a => Proxy n -> a -> S.ByteString
+headerEncodeRaw proxy = Text.encodeUtf8 . headerEncode proxy
 
-instance ReflectName n => HeaderEncode (n :: HeaderName) RawText where
+instance ReflectName n => HeaderEncode n RawText where
   headerEncode _ (RawText text) = text
 
 instance HeaderEncode 'Allow [Verb] where
@@ -44,8 +45,9 @@ instance HeaderEncode 'Allow [Verb] where
 class ReflectName n => HeaderDecode (n :: HeaderName) a where
   headerDecode :: Proxy n -> Text -> Either String a
 
-headerDecodeBS :: HeaderDecode n a => Proxy n -> S.ByteString -> Either String a
-headerDecodeBS proxy s = case Text.decodeUtf8' s of
+-- | Handles decoding a header all the way from /raw/ bytes.
+headerDecodeRaw :: HeaderDecode n a => Proxy n -> S.ByteString -> Either String a
+headerDecodeRaw proxy s = case Text.decodeUtf8' s of
   Left err -> Left (show err)
   Right t -> headerDecode proxy t
 

@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -18,6 +19,7 @@ import           Serv.Internal.Api
 import qualified Serv.Internal.Header         as Header
 import qualified Serv.Internal.MediaType      as MediaType
 import           Serv.Internal.Pair
+import           Serv.Internal.Rec
 import           Serv.Internal.Server.Context (Context)
 import           Serv.Internal.Server.Error   (RoutingError)
 import qualified Serv.Internal.Server.Error   as Error
@@ -80,12 +82,12 @@ routingError err = return (RoutingError err)
 -- ----------------------------------------------------------------------------
 
 -- | Responses generated in 'Server' implementations.
-data Response headers body where
-  Response :: HTTP.Status -> Header.Rec headers -> a -> Response headers ('Body ctypes a)
-  EmptyResponse :: HTTP.Status -> Header.Rec headers -> Response headers 'Empty
+data Response (headers :: [Pair Header.HeaderName *]) body where
+  Response :: HTTP.Status -> Rec headers -> a -> Response headers ('Body ctypes a)
+  EmptyResponse :: HTTP.Status -> Rec headers -> Response headers 'Empty
 
 basicResponse :: HTTP.Status -> Response '[] 'Empty
-basicResponse status = EmptyResponse status Header.Nil
+basicResponse status = EmptyResponse status Nil
 
 withBody
   :: Proxy ctypes -> a
@@ -98,9 +100,9 @@ withHeader
   -> Response headers body -> Response (name '::: value ': headers) body
 withHeader proxy val r = case r of
   Response status headers body ->
-    Response status (headers & proxy Header.-: val) body
+    Response status (headers & proxy -: val) body
   EmptyResponse status headers ->
-    EmptyResponse status (headers & proxy Header.-: val)
+    EmptyResponse status (headers & proxy -: val)
 
 
 -- Reflection

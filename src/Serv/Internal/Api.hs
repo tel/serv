@@ -60,6 +60,7 @@ data Method star where
   Method :: Verb -> [Pair HeaderName star] -> Body star -> Method star
   CaptureBody :: [star] -> star -> Method star -> Method star
   CaptureHeaders :: [Pair HeaderName star] -> Method star -> Method star
+  CaptureQuery :: [Pair Symbol star] -> Method star -> Method star
 
 -- | 'Method' responses may opt to include a response body or not.
 --
@@ -93,9 +94,9 @@ data Body star where
 --
 -- Always matches, "capturing" the value of a query parameter.
 data Path star where
-  Seg :: Symbol -> Path star
+  Const :: Symbol -> Path star
   HeaderAs :: HeaderName -> Symbol -> Path star
-  Capture :: Symbol -> star -> Path star
+  Seg :: Symbol -> star -> Path star
   Header :: HeaderName -> star -> Path star
   Wildcard :: Path star
   Flag :: Symbol -> Path star

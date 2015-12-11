@@ -14,28 +14,31 @@ module Serv.Internal.Server where
 
 import           Control.Monad.Except
 import           Control.Monad.Reader
+import qualified Data.ByteString              as S
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Proxy
-import           Data.Set (Set)
+import           Data.Set                     (Set)
+import qualified Data.Set                     as Set
 import           Data.String
-import           Data.Text (Text)
+import           Data.Tagged
+import           Data.Text                    (Text)
 import           GHC.TypeLits
 import           Network.HTTP.Media           (MediaType)
-import           Serv.Internal.Api
-import           Serv.Internal.Server.Context (Context)
-import           Serv.Internal.Server.Type
-import qualified Data.ByteString              as S
-import qualified Data.Set as Set
 import qualified Network.HTTP.Media           as Media
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai as Wai
-import qualified Serv.Internal.Header as Header
+import qualified Network.HTTP.Types           as HTTP
+import qualified Network.Wai                  as Wai
+import           Serv.Internal.Api
+import qualified Serv.Internal.Header         as Header
+import qualified Serv.Internal.MediaType      as MediaType
+import           Serv.Internal.Rec
+import           Serv.Internal.Pair
+import           Serv.Internal.Server.Context (Context)
 import qualified Serv.Internal.Server.Context as Context
 import qualified Serv.Internal.Server.Error   as Error
-import qualified Serv.Internal.URI as URI
-import qualified Serv.Internal.MediaType as MediaType
-import qualified Serv.Internal.Verb as Verb
+import           Serv.Internal.Server.Type
+import qualified Serv.Internal.URI            as URI
+import qualified Serv.Internal.Verb           as Verb
 
 
 -- Handling
@@ -58,26 +61,77 @@ class Handling (spec :: k) where
 TODO
 ----
 
-- [ ] 'Handling verb headers body
-- [ ] 'CaptureHeaders headers api
-- [ ] 'CaptureBody ctypes value api
-- [ ] 'Raw
+- [X] 'Method verb headers body
+- [T] 'CaptureHeaders headers api
+- [T] 'CaptureQuery query api
+- [T] 'CaptureBody ctypes value api
+- [X] 'Raw
 
 - [X] '[]
 - [X] x ': xs
 
 - [X] OneOf apis
-- [ ] Endpoint apis
+- [T] Endpoint apis
 
-- [X] Seg s :> api
+- [X] Const s :> api
 - [X] HeaderAs name value :> api
-- [ ] Capture name value :> api
+- [X] Seg name value :> api
 - [X] Header name value :> api
 - [X] Wildcard :> api
 - [ ] Flag name :> api
 - [ ] QueryParam name value :> api
 
 -}
+
+instance (Verb.ReflectVerb verb, WaiResponse headers body) =>
+  Handling ('Method verb headers body) where
+  type Impl ('Method verb headers body) m =
+    m (Response headers body)
+  handle _ mresp = Server $ \ctx -> do
+    let method = Context.method ctx
+        expected = Verb.reflectVerb (Proxy :: Proxy verb)
+    if method /= Verb.standardName expected
+       then routingError Error.NotFound
+       else do
+         resp <- mresp
+         let (_ctx', eitAccepts) =
+               Context.examineHeader (Proxy :: Proxy 'Header.Accept) ctx
+         case fromMaybe (Right []) eitAccepts of
+           Left _err ->
+             routingError
+             (Error.BadRequest
+              (Just "could not parse acceptable content types"))
+           Right accepts ->
+             -- TODO: Add CORS information
+             return (WaiResponse $ waiResponse accepts resp)
+
+instance Handling method =>
+  Handling ('CaptureHeaders (headers :: [Pair Header.HeaderName *]) method) where
+  type Impl ('CaptureHeaders headers method) m =
+    Rec headers -> Impl method m
+  handle = undefined -- TODO
+
+instance Handling method =>
+  Handling ('CaptureQuery (query :: [Pair Symbol *]) method) where
+  type Impl ('CaptureQuery query method) m =
+    Rec query -> Impl method m
+  handle = undefined -- TODO
+
+instance Handling method =>
+  Handling ('CaptureBody ctypes (value :: *) method) where
+  type Impl ('CaptureBody ctypes value method) m =
+    value -> Impl method m
+  handle = undefined -- TODO
+
+instance Handling 'Raw where
+  type Impl 'Raw m = m Wai.Application
+  handle _ impl = Server $ \_ -> do
+    app <- impl
+    return (Application app)
+
+instance Handling methods => Handling ('Endpoint methods) where
+  type Impl ('Endpoint methods) m = Impl methods m
+  handle = undefined -- TODO
 
 instance Handling '[] where
   type Impl '[] m = m NotHere
@@ -95,8 +149,8 @@ instance Handling apis => Handling ('OneOf apis) where
   type Impl ('OneOf apis) m = Impl apis m
   handle _ = handle (Proxy :: Proxy apis)
 
-instance (KnownSymbol s, Handling api) => Handling ('Seg s ':> api) where
-  type Impl ('Seg s ':> api) m = Impl api m
+instance (KnownSymbol s, Handling api) => Handling ('Const s ':> api) where
+  type Impl ('Const s ':> api) m = Impl api m
   handle _ impl = Server $ \ctx -> do
     let (ctx', m) = Context.takeSegment ctx
         matchName = fromString (symbolVal (Proxy :: Proxy s))
@@ -136,6 +190,18 @@ instance
         Nothing -> runServer (next Nothing) ctx'
         Just (Left parseError) -> routingError (Error.BadRequest (Just parseError))
         Just (Right value) -> runServer (next (Just value)) ctx'
+
+instance (URI.URIDecode v, Handling api) => Handling ('Seg n v ':> api) where
+  type Impl ('Seg n v ':> api) m = Tagged n v -> Impl api m
+  handle _ impl = Server $ \ctx -> do
+    let (ctx', m) = Context.takeSegment ctx
+        next = handle (Proxy :: Proxy api) . impl
+    case m of
+      Nothing -> routingError Error.NotFound
+      Just seg -> case URI.uriDecode seg of
+        Left _err -> routingError (Error.BadRequest Nothing)
+        Right val -> runServer (next $ Tagged val) ctx'
+
 
 
 -- Handling Endpoints

@@ -15,16 +15,18 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:
+
     Serv.Example
     Serv.Internal.Api
     Serv.Internal.HList
     Serv.Internal.Header
     Serv.Internal.Header.Name
-    Serv.Internal.Header.Rec
     Serv.Internal.Header.Serialization
     Serv.Internal.MediaType
     Serv.Internal.Pair
+    Serv.Internal.Query
     Serv.Internal.RawText
+    Serv.Internal.Rec
     Serv.Internal.Server
     Serv.Internal.Server.Config
     Serv.Internal.Server.Context
@@ -32,6 +34,7 @@ library
     Serv.Internal.Server.Type
     Serv.Internal.URI
     Serv.Internal.Verb
+
   build-depends:       base >= 4.7 && < 5
                      , bytestring
                      , case-insensitive
