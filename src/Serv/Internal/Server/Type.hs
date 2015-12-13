@@ -9,10 +9,13 @@
 
 module Serv.Internal.Server.Type where
 
+import Data.String
+import Data.Maybe (fromMaybe)
+import qualified Data.ByteString.Char8         as S8
 import qualified Data.ByteString.Lazy         as Sl
 import           Data.Function                ((&))
 import           Data.Proxy
-import           Network.HTTP.Media           (MediaType, Quality)
+import           Network.HTTP.Media           (MediaType, Quality, renderHeader)
 import qualified Network.HTTP.Types           as HTTP
 import qualified Network.Wai                  as Wai
 import           Serv.Internal.Api
@@ -20,7 +23,9 @@ import qualified Serv.Internal.Header         as Header
 import qualified Serv.Internal.MediaType      as MediaType
 import           Serv.Internal.Pair
 import           Serv.Internal.Rec
+import qualified Serv.Internal.Verb as Verb
 import           Serv.Internal.Server.Context (Context)
+import qualified Serv.Internal.Server.Context as Context
 import           Serv.Internal.Server.Error   (RoutingError)
 import qualified Serv.Internal.Server.Error   as Error
 
@@ -32,6 +37,11 @@ import qualified Serv.Internal.Server.Error   as Error
 -- creation and management of either larger types or non-empty proofs which would
 -- be burdensome to carry about.
 data NotHere = NotHere
+
+-- | Actual servers are implemented effectfully; this is a no-op server which
+-- immediately returns Not Found and applies no effects.
+noOp :: Applicative m => m NotHere
+noOp = pure NotHere
 
 -- | Either one thing or the other. In particular, often this is used when we are
 -- describing either one server implementation or the other. Used to give
@@ -52,6 +62,32 @@ data ServerValue
     -- ^ If the application demands an "upgrade" or ties into another server
     -- mechanism then routing at that location will return the (opaque)
     -- 'Application' to continue handling.
+
+runServerWai
+  :: Context
+  -> (Wai.Response -> IO Wai.ResponseReceived)
+  -> (Server IO -> IO Wai.ResponseReceived)
+runServerWai context respond server = do
+  val <- runServer server context
+  case val of
+    RoutingError err -> respond $ case err of
+      Error.NotFound ->
+        Wai.responseLBS HTTP.notFound404 [] ""
+      Error.BadRequest e -> do
+        let errString = fromString (fromMaybe "" e)
+        Wai.responseLBS HTTP.badRequest400 [] (fromString errString)
+      Error.UnsupportedMediaType ->
+        Wai.responseLBS HTTP.unsupportedMediaType415 [] ""
+      Error.MethodNotAllowed verbs -> do
+        let verbNames = map Verb.standardName verbs
+            allowHeader = S8.intercalate "," verbNames
+        Wai.responseLBS HTTP.methodNotAllowed405 [("Allow", allowHeader)] ""
+
+    WaiResponse resp -> respond resp
+
+    -- We forward the request (frozen) and the respond handler
+    -- on to the internal application
+    Application app -> app (Context.request context) respond
 
 -- A server executing in a given monad. We construct these from 'Api'
 -- descriptions and corresponding 'Impl' descriptions for said 'Api's.
@@ -122,6 +158,7 @@ instance
     waiResponse accepts (Response status headers value) =
       case MediaType.negotiateContentAlways (Proxy :: Proxy ctypes) accepts value of
         Nothing -> Wai.responseLBS HTTP.notAcceptable406 [] ""
-        Just result ->
-            Wai.responseLBS status (Header.reflectHeaders headers)
-            $ Sl.fromStrict result
+        Just (mtChosen, result) ->
+          let headers0 = Header.reflectHeaders headers
+              headers1 = ("Content-Type", renderHeader mtChosen) : headers0
+          in Wai.responseLBS status headers1 $ Sl.fromStrict result

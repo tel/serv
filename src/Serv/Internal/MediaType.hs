@@ -25,23 +25,23 @@ class HasMediaType ty => MimeDecode ty val where
 
 negotiateContent
   :: ReflectEncoders ctypes a =>
-     Proxy ctypes -> [Media.Quality MediaType] -> a -> Maybe S.ByteString
+     Proxy ctypes -> [Media.Quality MediaType] -> a -> Maybe (MediaType, S.ByteString)
 negotiateContent proxy acceptable value =
   fmap
-  (\encoder -> encoder value)
-  (Media.mapQuality (reflectEncoders proxy) acceptable)
+  (\(mt, encoder) -> (mt, encoder value))
+  (Media.mapQuality (map (\(mt, enc) -> (mt, (mt, enc))) $ reflectEncoders proxy) acceptable)
 
 -- | Similar to 'negotiateContent' but will always attempt to provide
 -- the first content type the server offers if nothing is acceptable.
 -- Still fails when no content types are offered (what's going on?)
 negotiateContentAlways
   :: ReflectEncoders ctypes a =>
-     Proxy ctypes -> [Media.Quality MediaType] -> a -> Maybe S.ByteString
+     Proxy ctypes -> [Media.Quality MediaType] -> a -> Maybe (MediaType, S.ByteString)
 negotiateContentAlways proxy acceptable value =
   case negotiateContent proxy acceptable value of
     Nothing -> case reflectEncoders proxy of
       [] -> Nothing
-      ((_, encoder) : _) -> Just (encoder value)
+      ((mt, encoder) : _) -> Just (mt, encoder value)
     Just result -> Just result
 
 class ReflectEncoders cts ty where

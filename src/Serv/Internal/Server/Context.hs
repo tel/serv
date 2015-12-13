@@ -13,6 +13,8 @@
 module Serv.Internal.Server.Context where
 
 import qualified Data.ByteString             as S
+import qualified Data.ByteString.Lazy        as Sl
+import qualified Data.IORef                  as IORef
 import           Data.Proxy
 import           Data.Set                    (Set)
 import qualified Data.Set                    as Set
@@ -41,6 +43,19 @@ data Context =
 
   , body            :: S.ByteString
   }
+
+makeContext :: Config -> Wai.Request -> IO Context
+makeContext theConfig theRequest = do
+  theBody <- Wai.strictRequestBody theRequest
+  -- We create a "frozen", strict version of the body and augment the request to
+  -- always return it directly.
+  ref <- IORef.newIORef (Sl.toStrict theBody)
+  return Context { request = theRequest { Wai.requestBody = IORef.readIORef ref }
+                 , config = theConfig
+                 , body = Sl.toStrict theBody
+                 , pathZipper = ([], Wai.pathInfo theRequest)
+                 , headersExpected = []
+                 }
 
 pathIsEmpty :: Context -> Bool
 pathIsEmpty ctx = case pathZipper ctx of

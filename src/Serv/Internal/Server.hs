@@ -131,7 +131,7 @@ instance Handling 'Raw where
 
 instance Handling methods => Handling ('Endpoint methods) where
   type Impl ('Endpoint methods) m = Impl methods m
-  handle = undefined -- TODO
+  handle Proxy = handle (Proxy :: Proxy methods)
 
 instance Handling '[] where
   type Impl '[] m = m NotHere
