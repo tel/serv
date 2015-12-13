@@ -4,7 +4,9 @@ module Serv.Server (
     Server
     , transformServer
     , makeApplication
-    , Config (..)
+
+    , Config
+    , defaultConfig
 
     , Handling (handle)
     , Impl

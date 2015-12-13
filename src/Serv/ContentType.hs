@@ -1,3 +1,5 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
 
 module Serv.ContentType (
 
@@ -7,7 +9,20 @@ module Serv.ContentType (
   , (//)
   , (/:)
 
+    -- Standard Content Types
+  , TextPlain
+
   ) where
 
-import Serv.Internal.MediaType
-import Network.HTTP.Media
+import qualified Data.Text.Encoding      as Text
+import           Network.HTTP.Media
+import           Serv.Internal.MediaType
+import           Serv.Internal.RawText
+
+data TextPlain
+
+instance HasMediaType TextPlain where
+  mediaType _ = "text" // "plain"
+
+instance MimeEncode TextPlain RawText where
+  mimeEncode _ (RawText t) = Text.encodeUtf8 t
