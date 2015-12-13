@@ -2,9 +2,9 @@
 module Serv.Server (
 
     Server
-    , runServerWai
+    , transformServer
+    , makeApplication
     , Config (..)
-    , makeContext
 
     , Handling (handle)
     , Impl
@@ -22,7 +22,14 @@ module Serv.Server (
   ) where
 
 import           Network.HTTP.Types.Status
+import qualified Network.Wai                  as Wai
 import           Serv.Internal.Server
 import           Serv.Internal.Server.Config
-import           Serv.Internal.Server.Type
 import           Serv.Internal.Server.Context
+import           Serv.Internal.Server.Type
+
+makeApplication :: Config -> Server IO -> Wai.Application
+makeApplication conf server = app where
+  app req resp = do
+    ctx <- makeContext conf req
+    runServerWai ctx resp server

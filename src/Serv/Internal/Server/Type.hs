@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
@@ -95,6 +96,9 @@ runServerWai context respond server = do
 -- transformed into a Wai 'Wai.Appliation', but 'Server' tracks around more
 -- information useful for interpretation and route finding.
 newtype Server m = Server { runServer :: Context -> m ServerValue }
+
+transformServer :: (forall x . m x -> n x) -> Server m -> Server n
+transformServer phi (Server act) = Server (phi . act)
 
 -- | 'Server's form a semigroup trying each 'Server' in order and receiving
 -- the leftmost one which does not end in an ignorable error.

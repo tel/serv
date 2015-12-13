@@ -36,9 +36,7 @@ config :: Config
 config = Config
 
 app :: Wai.Application
-app request respond = do
-  ctx <- makeContext config request
-  runServerWai ctx respond server
+app = makeApplication config server
 
 main :: IO ()
 main =
