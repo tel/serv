@@ -9,15 +9,16 @@ import           Serv.Common
 import qualified Serv.ContentType         as Ct
 import           Serv.Server
 
+type RawBody = 'A.Body '[ Ct.TextPlain ] RawText
 
 type Api
   = 'A.Endpoint
-    '[ 'A.Method 'A.GET '[] ('A.Body '[ Ct.TextPlain ] RawText) ]
+    '[ 'A.Method 'A.GET '[] RawBody ]
 
 impl :: Impl Api IO
 impl = get :<|> noOp
   where
-    get :: IO (Response '[] ('A.Body '[ Ct.TextPlain ] RawText))
+    get :: IO (Response '[] RawBody)
     get = return (Response ok200 Nil (RawText "Hello"))
 
 server :: Server IO
