@@ -97,6 +97,7 @@ runServerWai context respond server = do
 -- information useful for interpretation and route finding.
 newtype Server m = Server { runServer :: Context -> m ServerValue }
 
+-- Lift an effect transformation on to a Server
 transformServer :: (forall x . m x -> n x) -> Server m -> Server n
 transformServer phi (Server act) = Server (phi . act)
 
@@ -123,26 +124,53 @@ routingError err = return (RoutingError err)
 
 -- | Responses generated in 'Server' implementations.
 data Response (headers :: [Pair Header.HeaderName *]) body where
-  Response :: HTTP.Status -> Rec headers -> a -> Response headers ('Body ctypes a)
-  EmptyResponse :: HTTP.Status -> Rec headers -> Response headers 'Empty
+  Response
+    :: HTTP.Status
+    -> [HTTP.Header]
+    -> Rec headers
+    -> a
+    -> Response headers ('Body ctypes a)
+  EmptyResponse
+    :: HTTP.Status
+    -> [HTTP.Header]
+    -> Rec headers
+    -> Response headers 'Empty
 
-basicResponse :: HTTP.Status -> Response '[] 'Empty
-basicResponse status = EmptyResponse status Nil
+-- An 'emptyResponse' returns the provided status message with no body or headers
+emptyResponse :: HTTP.Status -> Response '[] 'Empty
+emptyResponse status = EmptyResponse status [] Nil
 
+-- | Adds a body to a response
 withBody
-  :: Proxy ctypes -> a
-  -> Response headers 'Empty -> Response headers ('Body ctypes a)
-withBody _ a (EmptyResponse status headers) =
-  Response status headers a
+  :: a -> Response headers 'Empty -> Response headers ('Body ctypes a)
+withBody a (EmptyResponse status secretHeaders headers) =
+  Response status secretHeaders headers a
 
+-- | Adds a header to a response
 withHeader
   :: Proxy name -> value
   -> Response headers body -> Response (name '::: value ': headers) body
 withHeader proxy val r = case r of
-  Response status headers body ->
-    Response status (headers & proxy -: val) body
-  EmptyResponse status headers ->
-    EmptyResponse status (headers & proxy -: val)
+  Response status secretHeaders headers body ->
+    Response status secretHeaders (headers & proxy -: val) body
+  EmptyResponse status secretHeaders headers ->
+    EmptyResponse status secretHeaders (headers & proxy -: val)
+
+-- | Unlike 'withHeader', 'withQuietHeader' allows you to add headers
+-- not explicitly specified in the api specification. These headers will
+-- be overridden by the public ones if there's a clash.
+withQuietHeader
+  :: Header.HeaderEncode name value
+     => Proxy name -> value
+     -> Response headers body -> Response headers body
+withQuietHeader proxy value r =
+  case r of
+    Response status secretHeaders headers body ->
+      Response status (newHeader : secretHeaders) headers body
+    EmptyResponse status secretHeaders headers ->
+      EmptyResponse status (newHeader : secretHeaders) headers
+  where
+    newHeader = (Header.reflectName proxy, Header.headerEncodeRaw proxy value)
 
 
 -- Reflection
@@ -152,17 +180,18 @@ class WaiResponse headers body where
   waiResponse :: [Quality MediaType] -> Response headers body -> Wai.Response
 
 instance Header.ReflectHeaders headers => WaiResponse headers 'Empty where
-  waiResponse _ (EmptyResponse status headers) =
-    Wai.responseLBS status (Header.reflectHeaders headers) ""
+  waiResponse _ (EmptyResponse status secretHeaders headers) =
+    Wai.responseLBS status (secretHeaders ++ Header.reflectHeaders headers) ""
 
 instance
   (Header.ReflectHeaders headers, MediaType.ReflectEncoders ctypes a) =>
     WaiResponse headers ('Body ctypes a)
   where
-    waiResponse accepts (Response status headers value) =
+    waiResponse accepts (Response status secretHeaders headers value) =
       case MediaType.negotiateContentAlways (Proxy :: Proxy ctypes) accepts value of
         Nothing -> Wai.responseLBS HTTP.notAcceptable406 [] ""
         Just (mtChosen, result) ->
           let headers0 = Header.reflectHeaders headers
               headers1 = ("Content-Type", renderHeader mtChosen) : headers0
-          in Wai.responseLBS status headers1 $ Sl.fromStrict result
+              headers2 = secretHeaders ++ headers1
+          in Wai.responseLBS status headers2 $ Sl.fromStrict result

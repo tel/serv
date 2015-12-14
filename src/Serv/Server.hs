@@ -15,7 +15,11 @@ module Serv.Server (
     , (:<|>) (..), NotHere (..)
     , noOp
 
-    , Response (..)
+    , Response
+    , emptyResponse
+    , withBody
+    , withHeader
+    , withQuietHeader
 
       -- HTTP Status re-exports
     , module Network.HTTP.Types.Status
@@ -30,6 +34,7 @@ import           Serv.Internal.Server.Config
 import           Serv.Internal.Server.Context
 import           Serv.Internal.Server.Type
 
+-- | Build a 'Wai.Application' from an implemented @'Server' 'IO'@.
 makeApplication :: Config -> Server IO -> Wai.Application
 makeApplication conf server = app where
   app req resp = do

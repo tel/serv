@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE TypeOperators         #-}
 
+import Data.Function ((&))
 import qualified Network.Wai              as Wai
 import           Network.Wai.Handler.Warp (run)
 import qualified Serv.Api                 as A
@@ -19,7 +20,10 @@ impl :: Impl Api IO
 impl = get :<|> noOp
   where
     get :: IO (Response '[] RawBody)
-    get = return (Response ok200 Nil (RawText "Hello"))
+    get =
+      return
+      $ emptyResponse ok200
+      & withBody (RawText "Hello")
 
 server :: Server IO
 server = handle (Proxy :: Proxy Api) impl
