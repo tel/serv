@@ -49,6 +49,8 @@ noOp = pure NotHere
 -- semantics to @'OneOf@ and @'Endpoint@.
 data a :<|> b = a :<|> b
 
+infixr 5 :<|>
+
 -- | A return value from a 'Server' computation.
 data ServerValue
   = RoutingError RoutingError

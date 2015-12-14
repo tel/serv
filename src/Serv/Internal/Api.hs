@@ -44,6 +44,8 @@ data Api star where
   Raw :: Api star
   (:>) :: Path star -> Api star -> Api star
 
+infixr 5 :>
+
 -- | A 'Method' is a single HTTP verb response handled at a given 'Endpoint'.
 -- In order to complete a 'Method''s operation it may demand data from the
 -- request such as headers or the request body.

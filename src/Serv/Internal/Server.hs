@@ -12,28 +12,17 @@
 
 module Serv.Internal.Server where
 
-import           Control.Monad.Except
-import           Control.Monad.Reader
-import qualified Data.ByteString              as S
 import           Data.Maybe
-import           Data.Monoid
 import           Data.Proxy
-import           Data.Set                     (Set)
-import qualified Data.Set                     as Set
 import           Data.String
 import           Data.Tagged
 import           Data.Text                    (Text)
 import           GHC.TypeLits
-import           Network.HTTP.Media           (MediaType)
-import qualified Network.HTTP.Media           as Media
-import qualified Network.HTTP.Types           as HTTP
 import qualified Network.Wai                  as Wai
 import           Serv.Internal.Api
 import qualified Serv.Internal.Header         as Header
-import qualified Serv.Internal.MediaType      as MediaType
 import           Serv.Internal.Rec
 import           Serv.Internal.Pair
-import           Serv.Internal.Server.Context (Context)
 import qualified Serv.Internal.Server.Context as Context
 import qualified Serv.Internal.Server.Error   as Error
 import           Serv.Internal.Server.Type

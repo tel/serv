@@ -17,9 +17,11 @@ library
   exposed-modules:
 
     Serv.Api
+    Serv.Common
     Serv.ContentType
     Serv.Header
     Serv.Header.Proxies
+    Serv.URI
     Serv.Internal.Api
     Serv.Internal.Header
     Serv.Internal.Header.Name

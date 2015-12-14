@@ -23,10 +23,12 @@ module Serv.Server (
 
       -- HTTP Status re-exports
     , module Network.HTTP.Types.Status
+    , module Data.Tagged
 
 
   ) where
 
+import           Data.Tagged
 import           Network.HTTP.Types.Status
 import qualified Network.Wai                  as Wai
 import           Serv.Internal.Server
