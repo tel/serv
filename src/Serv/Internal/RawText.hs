@@ -2,6 +2,7 @@
 
 module Serv.Internal.RawText where
 
+import           Data.String
 import           Data.Text   (Text)
 
 -- | RawText extracts as, like the name suggests,
@@ -12,4 +13,4 @@ import           Data.Text   (Text)
 
 newtype RawText =
   RawText { getRawText :: Text }
-  deriving (Eq, Ord, Read, Show, Monoid)
+  deriving (Eq, Ord, Read, Show, Monoid, IsString)

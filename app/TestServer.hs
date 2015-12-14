@@ -1,29 +1,32 @@
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE TypeOperators         #-}
 
-import Data.Function ((&))
+import           Data.Function            ((&))
+import           Data.Proxy
 import qualified Network.Wai              as Wai
 import           Network.Wai.Handler.Warp (run)
 import qualified Serv.Api                 as A
-import           Serv.Common
 import qualified Serv.ContentType         as Ct
+import qualified Serv.Header              as H
+import qualified Serv.Header.Proxies      as Hp
 import           Serv.Server
 
-type RawBody = 'A.Body '[ Ct.TextPlain ] RawText
+type RawBody = 'A.Body '[ Ct.TextPlain ] Ct.RawText
 
 type Api
   = 'A.Endpoint
-    '[ 'A.Method 'A.GET '[] RawBody ]
+    '[ 'A.Method 'A.GET '[ 'H.CacheControl 'A.::: Ct.RawText ] RawBody ]
 
 impl :: Impl Api IO
 impl = get :<|> noOp
   where
-    get :: IO (Response '[] RawBody)
     get =
       return
+      $ withBody "Hello"
+      . withHeader Hp.cacheControl "foo"
       $ emptyResponse ok200
-      & withBody (RawText "Hello")
 
 server :: Server IO
 server = handle (Proxy :: Proxy Api) impl

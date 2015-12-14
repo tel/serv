@@ -445,6 +445,206 @@ class ReflectName (n :: HeaderName) where
   reflectName :: proxy n -> HTTP.HeaderName
 
 
+-- Proxies
+-- ----------------------------------------------------------------------------
+
+cacheControl :: Proxy 'CacheControl
+cacheControl = Proxy
+
+connection :: Proxy 'Connection
+connection = Proxy
+
+contentLength :: Proxy 'ContentLength
+contentLength = Proxy
+
+contentType :: Proxy 'ContentType
+contentType = Proxy
+
+date :: Proxy 'Date
+date = Proxy
+
+pragma :: Proxy 'Pragma
+pragma = Proxy
+
+upgrade :: Proxy 'Upgrade
+upgrade = Proxy
+
+via :: Proxy 'Via
+via = Proxy
+
+warning :: Proxy 'Warning
+warning = Proxy
+
+accept :: Proxy 'Accept
+accept = Proxy
+
+acceptCharset :: Proxy 'AcceptCharset
+acceptCharset = Proxy
+
+acceptEncoding :: Proxy 'AcceptEncoding
+acceptEncoding = Proxy
+
+acceptLanguage :: Proxy 'AcceptLanguage
+acceptLanguage = Proxy
+
+accessControlRequestMethod :: Proxy 'AccessControlRequestMethod
+accessControlRequestMethod = Proxy
+
+accessControlRequestHeaders :: Proxy 'AccessControlRequestHeaders
+accessControlRequestHeaders = Proxy
+
+authorization :: Proxy 'Authorization
+authorization = Proxy
+
+cookie :: Proxy 'Cookie
+cookie = Proxy
+
+expect :: Proxy 'Expect
+expect = Proxy
+
+from :: Proxy 'From
+from = Proxy
+
+host :: Proxy 'Host
+host = Proxy
+
+ifMatch :: Proxy 'IfMatch
+ifMatch = Proxy
+
+ifModifiedSince :: Proxy 'IfModifiedSince
+ifModifiedSince = Proxy
+
+ifNoneMatch :: Proxy 'IfNoneMatch
+ifNoneMatch = Proxy
+
+ifRange :: Proxy 'IfRange
+ifRange = Proxy
+
+ifUnmodifiedSince :: Proxy 'IfUnmodifiedSince
+ifUnmodifiedSince = Proxy
+
+maxForwards :: Proxy 'MaxForwards
+maxForwards = Proxy
+
+origin :: Proxy 'Origin
+origin = Proxy
+
+proxyAuthorization :: Proxy 'ProxyAuthorization
+proxyAuthorization = Proxy
+
+range :: Proxy 'Range
+range = Proxy
+
+referer :: Proxy 'Referer
+referer = Proxy
+
+tE :: Proxy 'TE
+tE = Proxy
+
+userAgent :: Proxy 'UserAgent
+userAgent = Proxy
+
+xForwardedFor :: Proxy 'XForwardedFor
+xForwardedFor = Proxy
+
+xForwardedHost :: Proxy 'XForwardedHost
+xForwardedHost = Proxy
+
+xForwardedProto :: Proxy 'XForwardedProto
+xForwardedProto = Proxy
+
+xCsrfToken :: Proxy 'XCsrfToken
+xCsrfToken = Proxy
+
+accessControlAllowOrigin :: Proxy 'AccessControlAllowOrigin
+accessControlAllowOrigin = Proxy
+
+accessControlExposeHeaders :: Proxy 'AccessControlExposeHeaders
+accessControlExposeHeaders = Proxy
+
+accessControlMaxAge :: Proxy 'AccessControlMaxAge
+accessControlMaxAge = Proxy
+
+accessControlAllowCredentials :: Proxy 'AccessControlAllowCredentials
+accessControlAllowCredentials = Proxy
+
+accessControlAllowMethods :: Proxy 'AccessControlAllowMethods
+accessControlAllowMethods = Proxy
+
+accessControlAllowHeaders :: Proxy 'AccessControlAllowHeaders
+accessControlAllowHeaders = Proxy
+
+acceptPatch :: Proxy 'AcceptPatch
+acceptPatch = Proxy
+
+acceptRanges :: Proxy 'AcceptRanges
+acceptRanges = Proxy
+
+age :: Proxy 'Age
+age = Proxy
+
+allow :: Proxy 'Allow
+allow = Proxy
+
+contentDisposition :: Proxy 'ContentDisposition
+contentDisposition = Proxy
+
+contentEncoding :: Proxy 'ContentEncoding
+contentEncoding = Proxy
+
+contentLanguage :: Proxy 'ContentLanguage
+contentLanguage = Proxy
+
+contentLocation :: Proxy 'ContentLocation
+contentLocation = Proxy
+
+contentRange :: Proxy 'ContentRange
+contentRange = Proxy
+
+contentSecurityPolicy :: Proxy 'ContentSecurityPolicy
+contentSecurityPolicy = Proxy
+
+eTag :: Proxy 'ETag
+eTag = Proxy
+
+expires :: Proxy 'Expires
+expires = Proxy
+
+lastModified :: Proxy 'LastModified
+lastModified = Proxy
+
+link :: Proxy 'Link
+link = Proxy
+
+location :: Proxy 'Location
+location = Proxy
+
+proxyAuthenticate :: Proxy 'ProxyAuthenticate
+proxyAuthenticate = Proxy
+
+publicKeyPins :: Proxy 'PublicKeyPins
+publicKeyPins = Proxy
+
+retryAfter :: Proxy 'RetryAfter
+retryAfter = Proxy
+
+setCookie :: Proxy 'SetCookie
+setCookie = Proxy
+
+strictTransportSecurity :: Proxy 'StrictTransportSecurity
+strictTransportSecurity = Proxy
+
+trailer :: Proxy 'Trailer
+trailer = Proxy
+
+transferEncoding :: Proxy 'TransferEncoding
+transferEncoding = Proxy
+
+vary :: Proxy 'Vary
+vary = Proxy
+
+wWWAuthenticate :: Proxy 'WWWAuthenticate
+wWWAuthenticate = Proxy
 
 
 -- ReflectName Instances

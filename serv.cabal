@@ -17,9 +17,9 @@ library
   exposed-modules:
 
     Serv.Api
-    Serv.Server
-    Serv.Common
     Serv.ContentType
+    Serv.Header
+    Serv.Header.Proxies
     Serv.Internal.Api
     Serv.Internal.Header
     Serv.Internal.Header.Name
@@ -36,6 +36,7 @@ library
     Serv.Internal.Server.Type
     Serv.Internal.URI
     Serv.Internal.Verb
+    Serv.Server
 
   build-depends:       base >= 4.7 && < 5
                      , bytestring

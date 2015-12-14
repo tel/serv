@@ -157,8 +157,7 @@ withHeader proxy val r = case r of
     EmptyResponse status secretHeaders (headers & proxy -: val)
 
 -- | Unlike 'withHeader', 'withQuietHeader' allows you to add headers
--- not explicitly specified in the api specification. These headers will
--- be overridden by the public ones if there's a clash.
+-- not explicitly specified in the api specification.
 withQuietHeader
   :: Header.HeaderEncode name value
      => Proxy name -> value
@@ -172,6 +171,17 @@ withQuietHeader proxy value r =
   where
     newHeader = (Header.reflectName proxy, Header.headerEncodeRaw proxy value)
 
+-- | If a response type is complete defined by its implementation then
+-- applying 'resorted' to it will future proof it against reorderings
+-- of headers. If the response type is not completely inferrable, however,
+-- then this will require manual annotations of the "pre-sorted" response.
+resortHeaders :: RecordIso headers headers' => Response headers body -> Response headers' body
+resortHeaders r =
+  case r of
+    Response status secretHeaders headers body ->
+      Response status secretHeaders (reorder headers) body
+    EmptyResponse status secretHeaders headers ->
+      EmptyResponse status secretHeaders (reorder headers)
 
 -- Reflection
 -- ----------------------------------------------------------------------------

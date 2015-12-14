@@ -9,6 +9,9 @@ module Serv.ContentType (
   , (//)
   , (/:)
 
+    -- Cheating data types
+  , RawText (..)
+
     -- Standard Content Types
   , TextPlain
 
