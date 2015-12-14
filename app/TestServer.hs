@@ -5,6 +5,7 @@
 
 import           Data.Function            ((&))
 import           Data.Proxy
+import           Data.Text                (Text)
 import           Network.Wai.Handler.Warp (run)
 import qualified Serv.Api                 as A
 import           Serv.Common

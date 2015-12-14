@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE MultiWayIf            #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE RankNTypes            #-}
@@ -13,16 +14,20 @@
 module Serv.Internal.Server where
 
 import           Data.Maybe
+import           Data.Monoid
 import           Data.Proxy
+import           Data.Set                     (Set)
+import qualified Data.Set                     as Set
 import           Data.String
 import           Data.Tagged
 import           Data.Text                    (Text)
 import           GHC.TypeLits
+import qualified Network.HTTP.Types           as HTTP
 import qualified Network.Wai                  as Wai
 import           Serv.Internal.Api
 import qualified Serv.Internal.Header         as Header
-import           Serv.Internal.Rec
 import           Serv.Internal.Pair
+import           Serv.Internal.Rec
 import qualified Serv.Internal.Server.Context as Context
 import qualified Serv.Internal.Server.Error   as Error
 import           Serv.Internal.Server.Type
@@ -60,7 +65,7 @@ TODO
 - [X] x ': xs
 
 - [X] OneOf apis
-- [T] Endpoint apis
+- [X] Endpoint apis
 
 - [X] Const s :> api
 - [X] HeaderAs name value :> api
@@ -118,9 +123,47 @@ instance Handling 'Raw where
     app <- impl
     return (Application app)
 
-instance Handling methods => Handling ('Endpoint methods) where
-  type Impl ('Endpoint methods) m = Impl methods m
-  handle Proxy = handle (Proxy :: Proxy methods)
+instance (HeadersOf methods, VerbsOf methods, Handling methods) =>
+  Handling ('Endpoint methods)
+  where
+    type Impl ('Endpoint methods) m = Impl methods m
+    handle Proxy impl = Server $ \ctx -> do
+      let pathIsEmpty = Context.pathIsEmpty ctx
+      if not pathIsEmpty
+        then routingError Error.NotFound
+        else do
+          let method = Context.method ctx
+              requestHeaders = Context.requestHeadersSeen ctx
+          if | method == HTTP.methodOptions ->
+               return (defaultOptionsResponse verbs headers requestHeaders)
+
+             | verbMatch verbs method ->
+               runServer (handle (Proxy :: Proxy methods) impl) ctx
+
+             | otherwise ->
+               -- TODO: Probably a double-check; trying the method implementations
+               -- ought to fail this way, too
+               routingError (Error.MethodNotAllowed (Set.toList verbs))
+      where
+        verbs = verbsOf (Proxy :: Proxy methods)
+        headers = headersOf (Proxy :: Proxy methods)
+
+-- | Is the request method in the set of verbs?
+verbMatch :: Set Verb.Verb -> HTTP.Method -> Bool
+verbMatch verbs methodname =
+  methodname `Set.member` Set.map Verb.standardName verbs
+
+defaultOptionsResponse
+  :: Set Verb.Verb -> Set HTTP.HeaderName -> Set HTTP.HeaderName -> ServerValue
+defaultOptionsResponse verbs _headers _requestHeaders =
+  -- TODO: Add CORS information
+  WaiResponse
+  $ Wai.responseLBS
+    HTTP.ok200
+    [("Allow", Header.headerEncodeRaw
+               (Proxy :: Proxy 'Header.Allow)
+               (Set.toList verbs))]
+    ""
 
 instance Handling '[] where
   type Impl '[] m = m NotHere
@@ -455,50 +498,50 @@ instance (URI.URIDecode v, Handling api) => Handling ('Seg n v ':> api) where
 
 
 
--- -- Type-level Computations
--- -- ----------------------------------------------------------------------------
+-- Type-level Computations
+-- ----------------------------------------------------------------------------
 
+class VerbsOf methods where
+  verbsOf :: Proxy methods -> Set Verb.Verb
 
--- class VerbsOf methods where
---   verbsOf :: Proxy methods -> Set Verb.Verb
+instance VerbsOf '[] where
+  verbsOf Proxy = Set.empty
 
--- instance VerbsOf '[] where
---   verbsOf Proxy = Set.empty
+instance
+  (Verb.ReflectVerb verb, VerbsOf methods) =>
+    VerbsOf ('Method verb headers body ': methods)
+  where
+    verbsOf Proxy =
+      Set.insert
+      (Verb.reflectVerb (Proxy :: Proxy verb))
+      (verbsOf (Proxy :: Proxy methods))
 
--- instance
---   (Verb.ReflectVerb verb, VerbsOf methods) =>
---     VerbsOf ('Method verb headers body ': methods)
---   where
---     verbsOf Proxy =
---       Set.insert
---       (Verb.reflectVerb (Proxy :: Proxy verb))
---       (verbsOf (Proxy :: Proxy methods))
+class HeadersOf methods where
+  headersOf :: Proxy methods -> Set HTTP.HeaderName
 
+instance HeadersOf '[] where
+  headersOf _ = Set.empty
 
+instance (HeadersOf r, HeadersOf rs) => HeadersOf (r ': rs) where
+  headersOf _ = headersOf (Proxy :: Proxy r) <> headersOf (Proxy :: Proxy rs)
 
--- class HeadersOf methods where
---   headersOf :: Proxy methods -> Set HTTP.HeaderName
+instance HeadersOf headers => HeadersOf ('Method verb headers body) where
+  headersOf Proxy = headersOf (Proxy :: Proxy headers)
 
--- instance HeadersOf '[] where
---   headersOf _ = Set.empty
+instance HeadersOf method => HeadersOf ('CaptureBody ctypes a method ': methods) where
+  headersOf Proxy = headersOf (Proxy :: Proxy method)
 
--- instance (HeadersOf r, HeadersOf rs) => HeadersOf (r ': rs) where
---   headersOf _ = headersOf (Proxy :: Proxy r) <> headersOf (Proxy :: Proxy rs)
+instance
+  (HeadersOf headers, HeadersOf method) =>
+    HeadersOf ('CaptureHeaders headers method)
+  where
+    headersOf Proxy =
+      headersOf (Proxy :: Proxy headers)
+      <>
+      headersOf (Proxy :: Proxy method)
 
--- instance HeadersOf headers => HeadersOf ('Method verb headers body) where
---   headersOf Proxy = headersOf (Proxy :: Proxy headers)
-
--- instance HeadersOf method => HeadersOf ('WithRequestBody ctypes a method ': methods) where
---   headersOf Proxy = headersOf (Proxy :: Proxy method)
-
--- instance
---   (HeadersOf headers, HeadersOf method) =>
---     HeadersOf ('WithRequestHeaders headers method)
---   where
---     headersOf Proxy =
---       headersOf (Proxy :: Proxy headers)
---       <>
---       headersOf (Proxy :: Proxy method)
-
--- instance Header.ReflectName name => HeadersOf ( '(name, ty) :: (Header.Name, *) ) where
---   headersOf _ = Set.singleton (Header.reflectName (Proxy :: Proxy name))
+instance
+  Header.ReflectName name =>
+    HeadersOf ( name '::: ty :: Pair Header.HeaderName * )
+  where
+    headersOf _ = Set.singleton (Header.reflectName (Proxy :: Proxy name))
