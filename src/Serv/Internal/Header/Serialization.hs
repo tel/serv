@@ -7,11 +7,17 @@
 module Serv.Internal.Header.Serialization where
 
 import qualified Data.ByteString           as S
+import qualified Data.CaseInsensitive      as CI
+import           Data.List                 (sort)
 import           Data.Proxy
+import           Data.Set                  (Set)
+import qualified Data.Set                  as Set
 import           Data.Text                 (Text)
 import qualified Data.Text                 as Text
 import qualified Data.Text.Encoding        as Text
+import           Data.Time
 import           Network.HTTP.Media        (MediaType, Quality, parseQuality)
+import qualified Network.HTTP.Types        as HTTP
 import           Serv.Internal.Header.Name
 import           Serv.Internal.RawText
 import           Serv.Internal.Verb
@@ -34,9 +40,46 @@ headerEncodeRaw proxy = Text.encodeUtf8 . headerEncode proxy
 instance ReflectName n => HeaderEncode n RawText where
   headerEncode _ (RawText text) = text
 
-instance HeaderEncode 'Allow [Verb] where
-  headerEncode _ verbs = Text.intercalate "," (map (Text.pack . show) verbs)
+instance HeaderEncode 'Allow (Set Verb) where
+  headerEncode _ verbs =
+    Text.intercalate "," (map (Text.decodeUtf8 . standardName) (Set.toList verbs))
 
+instance HeaderEncode 'Allow [Verb] where
+  headerEncode prx verbs = headerEncode prx (Set.fromList verbs)
+
+instance HeaderEncode 'AccessControlExposeHeaders (Set HTTP.HeaderName) where
+  headerEncode prx headers =
+    Text.intercalate "," (map (Text.decodeUtf8 . CI.original) (Set.toList headers))
+
+instance HeaderEncode 'AccessControlAllowHeaders (Set HTTP.HeaderName) where
+  headerEncode prx headers =
+    Text.intercalate "," (map (Text.decodeUtf8 . CI.original) (Set.toList headers))
+
+instance HeaderEncode 'AccessControlMaxAge NominalDiffTime where
+  headerEncode prx ndt = Text.pack (show (round ndt))
+
+instance HeaderEncode 'AccessControlAllowOrigin Text where
+  headerEncode prx origin = origin
+
+instance HeaderEncode 'AccessControlAllowMethods (Set Verb) where
+  headerEncode _ verbs =
+    Text.intercalate "," (map (Text.decodeUtf8 . standardName) (Set.toList verbs))
+
+instance HeaderEncode 'AccessControlAllowCredentials Bool where
+  headerEncode _ ok
+    | ok = "true"
+    | otherwise = "false"
+
+instance {-# OVERLAPPABLE #-} ReflectName n => HeaderEncode n Bool where
+  headerEncode _ ok
+    | ok = "true"
+    | otherwise = "false"
+
+instance {-# OVERLAPPABLE #-} ReflectName n => HeaderEncode n Int where
+  headerEncode _ i = Text.pack (show i)
+
+instance {-# OVERLAPPABLE #-} ReflectName n => HeaderEncode n Text where
+  headerEncode _ t = t
 
 -- | Represents mechanisms to interpret data types as header-compatible values.
 --
@@ -59,3 +102,6 @@ instance HeaderDecode 'Accept [Quality MediaType] where
   headerDecode _ text = case parseQuality (Text.encodeUtf8 text) of
     Nothing -> Left "could not parse media type specification"
     Just qs -> Right qs
+
+headerPair :: HeaderEncode h v => Proxy h -> v -> HTTP.Header
+headerPair proxy v = (reflectName proxy, headerEncodeRaw proxy v)

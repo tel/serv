@@ -103,3 +103,4 @@ data Path star where
   Wildcard :: Path star
   Flag :: Symbol -> Path star
   QueryParam :: Symbol -> star -> Path star
+  CorsPolicy :: star -> Path star

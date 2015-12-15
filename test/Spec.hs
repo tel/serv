@@ -6,6 +6,7 @@ import           Test.Tasty.Ingredients.Basic (consoleTestReporter,
 import           Test.Tasty.Runners.AntXML    (antXMLRunner)
 import           Test.HUnit
 import qualified Examples.Ex1 as Ex1
+import qualified Examples.Ex2 as Ex2
 
 main :: IO ()
 main =
@@ -17,9 +18,10 @@ main =
 
 tests :: TestTree
 tests =
-  testGroup "Tests"
+  testGroup "Server Tests"
   [ systemTests
   , Ex1.tests
+  , Ex2.tests
   ]
 
 systemTests :: TestTree

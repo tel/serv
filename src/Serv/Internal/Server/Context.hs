@@ -21,6 +21,7 @@ import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
 import qualified Network.HTTP.Types          as HTTP
 import qualified Network.Wai                 as Wai
+import qualified Serv.Internal.Cors          as Cors
 import qualified Serv.Internal.Header        as Header
 import           Serv.Internal.RawText
 import           Serv.Internal.Server.Config
@@ -42,6 +43,8 @@ data Context =
     -- we'll have to be handling the partial request/respond dance from the get-go.
 
   , body            :: S.ByteString
+
+  , corsPolicies :: [Cors.Policy]
   }
 
 makeContext :: Config -> Wai.Request -> IO Context
@@ -55,6 +58,7 @@ makeContext theConfig theRequest = do
                  , body = Sl.toStrict theBody
                  , pathZipper = ([], Wai.pathInfo theRequest)
                  , headersExpected = []
+                 , corsPolicies = []
                  }
 
 pathIsEmpty :: Context -> Bool
@@ -125,9 +129,6 @@ expectHeader proxy value ctx =
     newContext = ctx { headersExpected = (headerName, Just value) : headersExpected ctx }
     headers = Wai.requestHeaders req
     req = request ctx
-
-
-
 
 -- Util
 -- ----------------------------------------------------------------------------

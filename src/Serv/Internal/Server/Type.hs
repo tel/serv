@@ -185,10 +185,21 @@ resortHeaders r =
     EmptyResponse status secretHeaders headers ->
       EmptyResponse status secretHeaders (reorder headers)
 
+-- | Used primarily for implementing @HEAD@ request automatically.
+deleteBody :: Response headers body -> Response headers 'Empty
+deleteBody r =
+  case r of
+    Response status secretHeaders headers _ ->
+      EmptyResponse status secretHeaders headers
+    EmptyResponse{} -> r
+
 -- Reflection
 -- ----------------------------------------------------------------------------
 
-class WaiResponse headers body where
+-- TODO: This is quite weird. It'd be better to have ReflectHeaders show up
+-- in fewer places
+
+class Header.ReflectHeaders headers => WaiResponse headers body where
   waiResponse :: [Quality MediaType] -> Response headers body -> Wai.Response
 
 instance Header.ReflectHeaders headers => WaiResponse headers 'Empty where

@@ -13,6 +13,7 @@
 
 module Serv.Internal.Server where
 
+import           Data.Function                ((&))
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Proxy
@@ -24,16 +25,17 @@ import           Data.Text                    (Text)
 import           GHC.TypeLits
 import qualified Network.HTTP.Types           as HTTP
 import qualified Network.Wai                  as Wai
+import qualified Serv.Header.Proxies          as Hp
 import           Serv.Internal.Api
 import qualified Serv.Internal.Header         as Header
 import           Serv.Internal.Pair
 import           Serv.Internal.Rec
+import           Serv.Internal.Server.Context (Context)
 import qualified Serv.Internal.Server.Context as Context
 import qualified Serv.Internal.Server.Error   as Error
 import           Serv.Internal.Server.Type
 import qualified Serv.Internal.URI            as URI
 import qualified Serv.Internal.Verb           as Verb
-
 
 -- Handling
 -- ----------------------------------------------------------------------------
@@ -77,10 +79,48 @@ TODO
 
 -}
 
-instance (Verb.ReflectVerb verb, WaiResponse headers body) =>
+encodeBody :: WaiResponse hdrs body => Context -> Response hdrs body -> ServerValue
+encodeBody ctx resp =
+  case acceptHdr of
+    Nothing -> WaiResponse (waiResponse [] resp)
+    Just (Left _err) ->
+      let msg = "could not parse acceptable content types"
+      in RoutingError (Error.BadRequest (Just msg))
+    Just (Right acceptList) ->
+      WaiResponse (waiResponse acceptList resp)
+
+  where
+    (_, acceptHdr) = Context.examineHeader Hp.accept ctx
+
+-- | 'GET' is special-cased to handle @HEAD@ semantics which cannot be
+-- specified otherwise.
+instance
+  {-# OVERLAPPING  #-}
+  WaiResponse headers body =>
+  Handling ('Method 'Verb.GET headers body) where
+
+  type Impl ('Method 'Verb.GET headers body) m =
+    m (Response headers body)
+
+  handle _ mresp = Server $ \ctx -> do
+    let method = Context.method ctx
+    case method of
+      "GET" -> do
+        resp <- mresp
+        return (encodeBody ctx resp)
+      "HEAD" -> do
+        resp <- mresp
+        let newResp = deleteBody resp
+        return (WaiResponse (waiResponse [] newResp))
+      _ -> routingError Error.NotFound
+
+instance
+  (Verb.ReflectVerb verb, WaiResponse headers body) =>
   Handling ('Method verb headers body) where
+
   type Impl ('Method verb headers body) m =
     m (Response headers body)
+
   handle _ mresp = Server $ \ctx -> do
     let method = Context.method ctx
         expected = Verb.reflectVerb (Proxy :: Proxy verb)
@@ -151,7 +191,10 @@ instance (HeadersOf methods, VerbsOf methods, Handling methods) =>
 -- | Is the request method in the set of verbs?
 verbMatch :: Set Verb.Verb -> HTTP.Method -> Bool
 verbMatch verbs methodname =
-  methodname `Set.member` Set.map Verb.standardName verbs
+    case methodname of
+      -- Special-casing the GET/HEAD overlap
+      "HEAD" -> verbMatch verbs "GET"
+      _ -> methodname `Set.member` Set.map Verb.standardName verbs
 
 defaultOptionsResponse
   :: Set Verb.Verb -> Set HTTP.HeaderName -> Set HTTP.HeaderName -> ServerValue
@@ -162,8 +205,15 @@ defaultOptionsResponse verbs _headers _requestHeaders =
     HTTP.ok200
     [("Allow", Header.headerEncodeRaw
                (Proxy :: Proxy 'Header.Allow)
-               (Set.toList verbs))]
+               orderedVerbs)]
     ""
+  where
+    allVerbs =
+      if Set.member Verb.GET verbs
+        then verbs & Set.insert Verb.HEAD
+                   & Set.insert Verb.OPTIONS
+        else verbs & Set.insert Verb.OPTIONS
+    orderedVerbs = Set.toList allVerbs
 
 instance Handling '[] where
   type Impl '[] m = m NotHere

@@ -23,6 +23,7 @@ library
     Serv.Header.Proxies
     Serv.URI
     Serv.Internal.Api
+    Serv.Internal.Cors
     Serv.Internal.Header
     Serv.Internal.Header.Name
     Serv.Internal.Header.Serialization
@@ -44,12 +45,12 @@ library
                      , bytestring
                      , case-insensitive
                      , containers
-                     , either
                      , http-media
                      , http-types
                      , mtl
                      , tagged
                      , text
+                     , time
                      , transformers
                      , wai
   default-language:    Haskell2010
@@ -69,6 +70,9 @@ test-suite serv-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
+  other-modules:
+    Examples.Ex1
+    Examples.Ex2
   build-depends:       base
                      , serv
 
