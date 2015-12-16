@@ -15,12 +15,16 @@ module Serv.Internal.Server.Context where
 import qualified Data.ByteString             as S
 import qualified Data.ByteString.Lazy        as Sl
 import qualified Data.IORef                  as IORef
+import           Data.Monoid
 import           Data.Proxy
 import           Data.Set                    (Set)
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
+import           Data.Text.Encoding          (decodeUtf8')
 import qualified Network.HTTP.Types          as HTTP
 import qualified Network.Wai                 as Wai
+import qualified Serv.Header.Proxies         as Hp
+import qualified Serv.Internal.Api.Analysis  as Analysis
 import qualified Serv.Internal.Cors          as Cors
 import qualified Serv.Internal.Header        as Header
 import           Serv.Internal.RawText
@@ -46,6 +50,30 @@ data Context =
 
   , corsPolicies :: [Cors.Policy]
   }
+
+corsHeaders
+  :: (Analysis.HeadersExpectedOf methods,
+     Analysis.HeadersReturnedBy methods,
+     Analysis.VerbsOf methods)
+  => Proxy methods -> Context -> Maybe [HTTP.Header]
+corsHeaders proxy ctx = do
+  let derivedExpected = Analysis.headersExpectedOf proxy
+      derivedReturned = Analysis.headersReturnedBy proxy
+      derivedVerbs = Analysis.verbsOf proxy
+      policyChain = corsPolicies ctx
+      conf = config ctx
+  RawText origin <- examineHeaderFast Hp.origin ctx
+  let corsContext =
+        Cors.Context
+        { Cors.origin = origin
+        , Cors.headersExpected =
+            Set.fromList (map fst (headersExpected ctx))
+            <> derivedExpected
+        , Cors.headersReturned = derivedReturned
+        , Cors.methodsAvailable = derivedVerbs
+        }
+  let accessSet = foldMap (\p -> p conf corsContext) policyChain
+  return (Cors.headerSet corsContext accessSet)
 
 makeContext :: Config -> Wai.Request -> IO Context
 makeContext theConfig theRequest = do
@@ -111,6 +139,20 @@ examineHeader proxy ctx =
   where
     headerName = Header.reflectName proxy
     (newContext, rawString) = pullHeaderRaw headerName ctx
+
+-- | Sort of like 'examineHeader' but used for when we just want the value
+-- and don't care about updating the context or worrying about
+-- distinguishing between decoding failure and outright not being there at
+-- all!
+examineHeaderFast :: Header.HeaderDecode n a => Proxy n -> Context -> Maybe a
+examineHeaderFast proxy ctx = do
+  let (_, mayHdr) = pullHeaderRaw (Header.reflectName proxy) ctx
+  hdrRaw <- mayHdr
+  hush (Header.headerDecodeRaw proxy hdrRaw)
+  where
+    hush :: Either e a -> Maybe a
+    hush (Left _) = Nothing
+    hush (Right a) = Just a
 
 -- | Match a header value in the context, updating it to show that we looked
 expectHeader :: Header.ReflectName n => Proxy n -> Text -> Context -> (Context, Bool)

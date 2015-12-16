@@ -3,6 +3,7 @@ module Serv.Internal.Cors where
 
 import           Control.Applicative
 import           Data.Monoid
+import           Data.Proxy
 import           Data.Set                           (Set)
 import qualified Data.Set                           as Set
 import           Data.String
@@ -19,6 +20,16 @@ import           Serv.Internal.Verb                 (Verb)
 -- current routing context to determine how to expose resources to the
 -- requestor.
 type Policy = Config -> Context -> AccessSet
+
+-- | Class describing types which describe CORS 'Policy's.
+class CorsPolicy m where
+  corsPolicy :: Proxy m -> Policy
+
+-- | The 'PermitAll' policy produces the `permitAll` `Policy`.
+data PermitAll
+
+instance CorsPolicy PermitAll where
+  corsPolicy _ = permitAll
 
 headerSet :: Context -> AccessSet -> [HTTP.Header]
 headerSet ctx access
@@ -48,10 +59,14 @@ data Context
    , methodsAvailable :: Set Verb
    }
 
--- | Origins can be either a text description of the URI origin that the
--- request is originating from /or/ @*@ which indicates that /all/ origins
--- are allowed (but disallows credential use)
-data Origin = Origin Text | Wildcard
+mergeContext :: Context -> Context -> Context
+mergeContext a b =
+  Context
+  { origin = origin a
+  , headersExpected = headersExpected a <> headersExpected b
+  , headersReturned = headersReturned a <> headersReturned b
+  , methodsAvailable = methodsAvailable a <> methodsAvailable b
+  }
 
 -- | Descrbes what parts of the response should be made available
 -- cross-origin. The Monoid product on 'AccessSet's permits all accesses of

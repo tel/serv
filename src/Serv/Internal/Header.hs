@@ -12,6 +12,7 @@ module Serv.Internal.Header (
   reflectName,
   ReflectName,
   ReflectHeaders (..),
+  ReflectHeaderNames (..),
   HeaderEncode (..),
   headerEncodeRaw,
   HeaderDecode (..),
@@ -26,6 +27,21 @@ import           Serv.Internal.Header.Name
 import           Serv.Internal.Header.Serialization
 import           Serv.Internal.Pair
 import           Serv.Internal.Rec
+
+-- | Given a header set description, reflect out all of the names
+class ReflectHeaderNames headers where
+  reflectHeaderNames :: Proxy headers -> [HTTP.HeaderName]
+
+instance ReflectHeaderNames '[] where
+  reflectHeaderNames _ = []
+
+instance
+  (ReflectName name, ReflectHeaderNames hdrs) =>
+  ReflectHeaderNames (name '::: ty ': hdrs)
+  where
+    reflectHeaderNames _ =
+      reflectName (Proxy :: Proxy name)
+      : reflectHeaderNames (Proxy :: Proxy hdrs)
 
 -- | Given a record of headers, encode them into a list of header pairs.
 class ReflectHeaders headers where

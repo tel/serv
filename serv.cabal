@@ -19,10 +19,12 @@ library
     Serv.Api
     Serv.Common
     Serv.ContentType
+    Serv.Cors
     Serv.Header
     Serv.Header.Proxies
     Serv.URI
     Serv.Internal.Api
+    Serv.Internal.Api.Analysis
     Serv.Internal.Cors
     Serv.Internal.Header
     Serv.Internal.Header.Name

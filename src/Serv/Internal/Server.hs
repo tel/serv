@@ -27,6 +27,8 @@ import qualified Network.HTTP.Types           as HTTP
 import qualified Network.Wai                  as Wai
 import qualified Serv.Header.Proxies          as Hp
 import           Serv.Internal.Api
+import           Serv.Internal.Api.Analysis
+import qualified Serv.Internal.Cors           as Cors
 import qualified Serv.Internal.Header         as Header
 import           Serv.Internal.Pair
 import           Serv.Internal.Rec
@@ -76,6 +78,7 @@ TODO
 - [X] Wildcard :> api
 - [ ] Flag name :> api
 - [ ] QueryParam name value :> api
+- [X] Cors :> api
 
 -}
 
@@ -136,7 +139,6 @@ instance
              (Error.BadRequest
               (Just "could not parse acceptable content types"))
            Right accepts ->
-             -- TODO: Add CORS information
              return (WaiResponse $ waiResponse accepts resp)
 
 instance Handling method =>
@@ -163,8 +165,12 @@ instance Handling 'Raw where
     app <- impl
     return (Application app)
 
-instance (HeadersOf methods, VerbsOf methods, Handling methods) =>
-  Handling ('Endpoint methods)
+instance
+  (VerbsOf methods,
+   HeadersReturnedBy methods,
+   HeadersExpectedOf methods,
+   Handling methods)
+  => Handling ('Endpoint (methods :: [Method *]))
   where
     type Impl ('Endpoint methods) m = Impl methods m
     handle Proxy impl = Server $ \ctx -> do
@@ -174,11 +180,16 @@ instance (HeadersOf methods, VerbsOf methods, Handling methods) =>
         else do
           let method = Context.method ctx
               requestHeaders = Context.requestHeadersSeen ctx
+              corsHeaders = fromMaybe []
+                              $ Context.corsHeaders
+                                (Proxy :: Proxy methods)
+                                ctx
           if | method == HTTP.methodOptions ->
-               return (defaultOptionsResponse verbs headers requestHeaders)
+               return (addHeaders corsHeaders $ defaultOptionsResponse verbs)
 
-             | verbMatch verbs method ->
-               runServer (handle (Proxy :: Proxy methods) impl) ctx
+             | verbMatch verbs method -> do
+                 value <- runServer (handle (Proxy :: Proxy methods) impl) ctx
+                 return (addHeaders corsHeaders value)
 
              | otherwise ->
                -- TODO: Probably a double-check; trying the method implementations
@@ -186,7 +197,12 @@ instance (HeadersOf methods, VerbsOf methods, Handling methods) =>
                routingError (Error.MethodNotAllowed (Set.toList verbs))
       where
         verbs = verbsOf (Proxy :: Proxy methods)
-        headers = headersOf (Proxy :: Proxy methods)
+        addHeaders hdrs v =
+          case v of
+            WaiResponse resp ->
+              WaiResponse (Wai.mapResponseHeaders (hdrs ++) resp)
+            other -> other
+
 
 -- | Is the request method in the set of verbs?
 verbMatch :: Set Verb.Verb -> HTTP.Method -> Bool
@@ -196,9 +212,8 @@ verbMatch verbs methodname =
       "HEAD" -> verbMatch verbs "GET"
       _ -> methodname `Set.member` Set.map Verb.standardName verbs
 
-defaultOptionsResponse
-  :: Set Verb.Verb -> Set HTTP.HeaderName -> Set HTTP.HeaderName -> ServerValue
-defaultOptionsResponse verbs _headers _requestHeaders =
+defaultOptionsResponse :: Set Verb.Verb -> ServerValue
+defaultOptionsResponse verbs =
   -- TODO: Add CORS information
   WaiResponse
   $ Wai.responseLBS
@@ -284,314 +299,29 @@ instance (URI.URIDecode v, Handling api) => Handling ('Seg n v ':> api) where
         Left _err -> routingError (Error.BadRequest Nothing)
         Right val -> runServer (next $ Tagged val) ctx'
 
+instance (Handling api, Cors.CorsPolicy p) => Handling ('Cors p ':> api) where
+  type Impl ('Cors p ':> api) m = Impl api m
+  handle _ impl = Server $ \ctx ->
+    let newCtx = ctx { Context.corsPolicies =
+                         Cors.corsPolicy (Proxy :: Proxy p)
+                         : Context.corsPolicies ctx }
+    in runServer (handle (Proxy :: Proxy api) impl) newCtx
 
+-- instance (ContentMatching cts ty, Handling api) => Handling ('CaptureBody cts ty ':> api) where
 
--- Handling Endpoints
--- ----------------------------------------------------------------------------
-
--- Auto handle OPTIONS and CORS?
---
--- > The Allow entity-header field lists the set of methods supported
---   by the resource identified by the Request-URI. The purpose of this
---   field is strictly to inform the recipient of valid methods
---   associated with the resource. An Allow header field MUST be
---   present in a 405 (Method Not Allowed) response.
-
--- instance
---   Verb.ReflectVerb verb =>
---     Handling ('Method verb headers body :: Method *)
---   where
---     type Impl ('Method verb headers body) m =
---       m (Response headers body)
-
---     handle Proxy mResponse = Server $ do
-
---       method <- asks Context.method
---       when (method /= Verb.standardHeader verb)
---         (throwError $ Error.MethodNotAllowed [verb])
-
---       response <- lift (lift mResponse)
---       _ response
-
---       where
---         verb = Verb.reflectVerb (Proxy :: Proxy verb)
-
--- instance Handling ('[] :: [Method *]) where
---   type Impl ('[] :: [Method *]) m = m NotHere
---   handle = undefined
-
--- instance Handling ('Method verb headers body ': rs :: [Method *]) where
---   type Impl ('Method verb headers body ': rs) m =
---     m (Response headers body) :<|> Impl rs m
---   handle = undefined
-
-
--- instance
---   (HeadersOf methods, VerbsOf methods, Handling methods) =>
---     Handling ('Endpoint methods)
---   where
-
---     type Impl ('Endpoint methods) m =
---       Impl methods m
-
---     handle Proxy impl = Server $ do
---       pathIsEmpty <- asks Context.pathIsEmpty
---       when (not pathIsEmpty) (throwError Error.NotFound)
---       method <- asks Context.method
---       requestHeaders <- asks Context.requestHeadersSeen
---       case () of
---         ()
-
---           | method == HTTP.methodOptions ->
---             return (defaultOptionsResponse verbs headers requestHeaders)
-
---           | verbMatch verbs method ->
---             runServer (handle (Proxy :: Proxy methods) impl)
-
---           | otherwise ->
---             -- TODO: Probably a double-check; trying the method implementations
---             -- ought to fail this way, too
---             throwError $ Error.MethodNotAllowed (Set.toList verbs)
-
---       where
---         verbs = verbsOf (Proxy :: Proxy methods)
---         headers = headersOf (Proxy :: Proxy methods)
-
--- -- | Is the request method in the set of verbs?
--- verbMatch :: Set Verb.Verb -> HTTP.Method -> Bool
--- verbMatch verbs methodname =
---   methodname `Set.member` Set.map Verb.standardHeader verbs
-
--- defaultOptionsResponse
---   :: Set Verb.Verb -> Set HTTP.HeaderName -> Set HTTP.HeaderName -> Wai.Response
--- defaultOptionsResponse verbs _headers _requestHeaders =
---   Wai.responseLBS
---   HTTP.ok200
---   [("Allow", Header.headerEncodeBS (Proxy :: Proxy 'Header.Allow) (Set.toList verbs))]
---   ""
-
--- -- instance Handling ('Endpoint '[]) where
-
--- --   type Impl ('Endpoint '[]) m =
--- --     m NotHere
-
--- --   handle Proxy m = Server $ do
--- --     NotHere <- lift (lift m)
--- --     throwError Error.NotFound
-
--- -- instance
--- --   Handling ('Endpoint methods) =>
--- --     Handling ('Endpoint ('Method verb headers body ': methods))
-
--- --   where
-
--- --     type Impl ('Endpoint ('Method verb headers body ': methods)) m =
--- --       m (Response headers body) :<|> Impl ('Endpoint methods) m
-
--- --     -- Very similar to the implementation of @Handling ('Choice apis)@
--- --     handle Proxy (m :<|> ms) =
--- --       goHere
--- --       `orElse`
--- --       handle (Proxy :: Proxy ('Endpoint methods)) ms
-
--- --       where
-
--- --         goHere = undefined m
-
-
-
--- -- instance (ContentMatching cts ty, Handling api) => Handling ('CaptureBody cts ty ':> api) where
-
--- --   type Impl ('CaptureBody cts ty ':> api) m =
--- --     ty -> Impl api m
-
--- --   handle Proxy impl = Server $ do
--- --     (newContext, maybeHeader) <- asks $ Context.pullHeaderRaw HTTP.hContentType
--- --     let header = fromMaybe "application/octet-stream" maybeHeader
--- --     reqBody <- asks Context.body
--- --     case Media.mapContentMedia matches header of
--- --       Nothing -> throwError Error.UnsupportedMediaType
--- --       Just decoder -> case decoder reqBody of
--- --         Left err -> throwError $ Error.BadRequest (Just err)
--- --         Right val -> local (const newContext) (continue val)
-
--- --     where
--- --       matches = contentMatch (Proxy :: Proxy cts)
--- --       continue = runServer . handle (Proxy :: Proxy api) . impl
-
-
-
--- -- Handling Choice
--- -- ----------------------------------------------------------------------------
-
--- instance Handling ('OneOf '[]) where
---   type Impl ('OneOf '[]) m = NotHere
---   handle Proxy NotHere = Server (throwError Error.NotFound)
-
--- instance
---   (Handling api, Handling ('OneOf apis)) =>
---     Handling ('OneOf (api ': apis))
---   where
---     type Impl ('OneOf (api ': apis)) m =
---       Impl api m :<|> Impl ('OneOf apis) m
-
---     handle Proxy (impl :<|> impls) =
---       handle (Proxy :: Proxy api) impl
---       `orElse`
---       handle (Proxy :: Proxy ('OneOf apis)) impls
-
-
-
--- -- Handling Qualifiers
--- -- ----------------------------------------------------------------------------
-
--- instance
---   (Header.ReflectName name, Handling api, URI.URIDecode val) =>
---     Handling ('CaptureHeader name val ':> api)
-
---   where
-
---     type Impl ('CaptureHeader name val ':> api) m =
---       Maybe val -> Impl api m
-
---     handle Proxy impl = Server $ do
---       (newContext, mayHdr) <- asks $ Context.examineHeader headerName
---       case mayHdr of
---         Nothing -> local (const newContext) (continue Nothing)
---         Just (Left parseError) -> throwError (Error.BadRequest (Just parseError))
---         Just (Right val) -> local (const newContext) (continue $ Just val)
-
---       where
---         continue = runServer . handle (Proxy :: Proxy api) . impl
---         headerName = (Header.reflectName (Proxy :: Proxy name))
-
--- instance
---   (Header.ReflectName name, KnownSymbol val, Handling api) =>
---     Handling ('MatchHeader name val ':> api)
-
---   where
-
---     type Impl ('MatchHeader name val ':> api) m =
---       Impl api m
-
---     handle Proxy impl = Server $ do
---       (newContext, ok) <- asks
---                           $ Context.expectHeader
---                             headerName
---                             (fromString headerValue)
---       if ok
---         then local (const newContext) continue
---         else throwError
---              (Error.BadRequest
---               (Just $ "Header " ++ show headerName ++ " expected to take value " ++ headerValue))
-
---       where
---         Server continue = handle (Proxy :: Proxy api) impl
---         headerName = Header.reflectName (Proxy :: Proxy name)
---         headerValue = symbolVal (Proxy :: Proxy val)
-
-
--- instance (Handling api, KnownSymbol s) => Handling ('Seg s ':> api) where
-
---   type Impl ('Seg s ':> api) m =
---     Impl api m
-
---   handle Proxy impl = Server $ do
---     (newContext, maySeg) <- asks Context.takeSegment
---     case maySeg of
---       Nothing -> throwError Error.NotFound
---       Just seg
---         | seg == segToMatch -> local (const newContext) continue
---         | otherwise -> throwError Error.NotFound
-
---     where
---       segToMatch = fromString (symbolVal (Proxy :: Proxy s))
---       Server continue = handle (Proxy :: Proxy api) impl
-
-
--- instance (URI.URIDecode ty, Handling api) => Handling ('CaptureSeg name ty ':> api) where
-
---   type Impl ('CaptureSeg name ty ':> api) m =
+--   type Impl ('CaptureBody cts ty ':> api) m =
 --     ty -> Impl api m
 
 --   handle Proxy impl = Server $ do
---     (newContext, maySeg) <- asks Context.takeSegment
---     case maySeg of
---       Nothing -> throwError Error.NotFound
---       Just seg -> case URI.uriDecode seg of
---         Left _err -> throwError (Error.BadRequest Nothing)
+--     (newContext, maybeHeader) <- asks $ Context.pullHeaderRaw HTTP.hContentType
+--     let header = fromMaybe "application/octet-stream" maybeHeader
+--     reqBody <- asks Context.body
+--     case Media.mapContentMedia matches header of
+--       Nothing -> throwError Error.UnsupportedMediaType
+--       Just decoder -> case decoder reqBody of
+--         Left err -> throwError $ Error.BadRequest (Just err)
 --         Right val -> local (const newContext) (continue val)
 
 --     where
+--       matches = contentMatch (Proxy :: Proxy cts)
 --       continue = runServer . handle (Proxy :: Proxy api) . impl
-
-
--- instance Handling api => Handling ('CaptureContext ':> api) where
-
---   type Impl ('CaptureContext ':> api) m = Context -> Impl api m
-
---   handle Proxy impl = Server $ do
---     ctx <- ask
---     runServer (handle (Proxy :: Proxy api) (impl ctx))
-
-
--- instance Handling api => Handling ('CaptureWildcard ':> api) where
-
---   type Impl ('CaptureWildcard ':> api) m = [Text] -> Impl api m
-
---   handle Proxy impl = Server $ do
---     ctx <- ask
---     let (newContext, path) = Context.takeAllSegments ctx
---     local (const newContext) (continue path)
-
---     where continue = runServer . handle (Proxy :: Proxy api) . impl
-
-
-
--- Type-level Computations
--- ----------------------------------------------------------------------------
-
-class VerbsOf methods where
-  verbsOf :: Proxy methods -> Set Verb.Verb
-
-instance VerbsOf '[] where
-  verbsOf Proxy = Set.empty
-
-instance
-  (Verb.ReflectVerb verb, VerbsOf methods) =>
-    VerbsOf ('Method verb headers body ': methods)
-  where
-    verbsOf Proxy =
-      Set.insert
-      (Verb.reflectVerb (Proxy :: Proxy verb))
-      (verbsOf (Proxy :: Proxy methods))
-
-class HeadersOf methods where
-  headersOf :: Proxy methods -> Set HTTP.HeaderName
-
-instance HeadersOf '[] where
-  headersOf _ = Set.empty
-
-instance (HeadersOf r, HeadersOf rs) => HeadersOf (r ': rs) where
-  headersOf _ = headersOf (Proxy :: Proxy r) <> headersOf (Proxy :: Proxy rs)
-
-instance HeadersOf headers => HeadersOf ('Method verb headers body) where
-  headersOf Proxy = headersOf (Proxy :: Proxy headers)
-
-instance HeadersOf method => HeadersOf ('CaptureBody ctypes a method ': methods) where
-  headersOf Proxy = headersOf (Proxy :: Proxy method)
-
-instance
-  (HeadersOf headers, HeadersOf method) =>
-    HeadersOf ('CaptureHeaders headers method)
-  where
-    headersOf Proxy =
-      headersOf (Proxy :: Proxy headers)
-      <>
-      headersOf (Proxy :: Proxy method)
-
-instance
-  Header.ReflectName name =>
-    HeadersOf ( name '::: ty :: Pair Header.HeaderName * )
-  where
-    headersOf _ = Set.singleton (Header.reflectName (Proxy :: Proxy name))

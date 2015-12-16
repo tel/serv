@@ -11,13 +11,13 @@ import qualified Network.HTTP.Types as HTTP
 -- even evaluating that risk we'll just disallow it.
 
 data Verb
-  = GET
+  = DELETE
+  | GET
   | HEAD
+  | OPTIONS
+  | PATCH
   | POST
   | PUT
-  | PATCH
-  | DELETE
-  | OPTIONS
     deriving ( Eq, Ord, Show, Read )
 
 standardName :: Verb -> HTTP.Method
