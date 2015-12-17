@@ -8,7 +8,6 @@ module Examples.Ex2 where
 
 import           Data.Function       ((&))
 import           Data.Proxy
-import           Data.String
 import           Data.Text           (Text)
 import qualified Network.Wai         as Wai
 import qualified Network.Wai.Test    as T
@@ -19,7 +18,6 @@ import qualified Serv.Cors           as Cors
 import qualified Serv.Header         as H
 import qualified Serv.Header.Proxies as Hp
 import           Serv.Server
-import           Test.HUnit
 import           Test.Tasty
 import qualified Test.Tasty.HUnit    as Hu
 
@@ -27,8 +25,8 @@ type RawBody = 'A.Body '[ Ct.TextPlain ] Text
 
 type Api
   = 'A.Cors Cors.PermitAll 'A.:>
-    'A.Header H.IfRange RawText 'A.:> 'A.Endpoint
-    '[ 'A.Method 'A.GET '[H.XCsrfToken 'A.::: RawText] RawBody
+    'A.Header 'H.IfRange RawText 'A.:> 'A.Endpoint
+    '[ 'A.Method 'A.GET '[ 'H.XCsrfToken 'A.::: RawText ] RawBody
      , 'A.Method 'A.DELETE '[] 'A.Empty
      ]
 
