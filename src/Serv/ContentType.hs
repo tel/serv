@@ -12,6 +12,7 @@ module Serv.ContentType (
 
     -- Standard Content Types
   , TextPlain
+  , JSON
 
   ) where
 

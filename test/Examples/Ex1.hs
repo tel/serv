@@ -20,22 +20,31 @@ import           Test.Tasty
 import qualified Test.Tasty.HUnit    as Hu
 
 type RawBody = 'A.Body '[ Ct.TextPlain ] Text
+type JSONBody = 'A.Body '[ Ct.JSON ] [Int]
 
 type Api
   = 'A.Endpoint
-    '[ 'A.Method 'A.GET '[ 'H.CacheControl 'A.::: RawText ] RawBody ]
+    '[ 'A.Method 'A.GET '[ 'H.CacheControl 'A.::: RawText ] RawBody
+     , 'A.Method 'A.PUT '[ 'H.CacheControl 'A.::: RawText ] JSONBody
+     ]
 
 apiProxy :: Proxy Api
 apiProxy = Proxy
 
 impl :: Impl Api IO
-impl = get :<|> noOp
+impl = get :<|> put :<|> noOp
   where
     get =
       return
       $ emptyResponse ok200
       & withHeader Hp.cacheControl "foo"
       & withBody "Hello"
+    put =
+      return
+      $ emptyResponse ok200
+      & withHeader Hp.cacheControl "foo"
+      & withBody [1, 2, 3]
+
 
 server :: Server IO
 server = handle apiProxy impl
@@ -45,12 +54,20 @@ runTest = flip T.runSession (makeApplication defaultConfig server)
 
 test1 :: TestTree
 test1 = testGroup "Simple responses"
-  [ Hu.testCase "Constant GET response" $ runTest $ do
+  [ Hu.testCase "Constant GET response (RawText)" $ runTest $ do
       let req = Wai.defaultRequest
       resp <- T.request req
       T.assertStatus 200 resp
       T.assertContentType "text/plain" resp
       T.assertBody "Hello" resp
+      T.assertHeader "Cache-Control" "foo" resp
+
+  , Hu.testCase "Constant PUT response (JSON)" $ runTest $ do
+      let req = Wai.defaultRequest { Wai.requestMethod = "PUT" }
+      resp <- T.request req
+      T.assertStatus 200 resp
+      T.assertContentType "application/json" resp
+      T.assertBody "[1,2,3]" resp
       T.assertHeader "Cache-Control" "foo" resp
 
   , Hu.testCase "Proper OPTIONS response" $ runTest $ do
@@ -59,7 +76,7 @@ test1 = testGroup "Simple responses"
       resp <- T.request req
       T.assertStatus 200 resp
       T.assertBody "" resp
-      T.assertHeader "Allow" "GET,HEAD,OPTIONS" resp
+      T.assertHeader "Allow" "GET,HEAD,OPTIONS,PUT" resp
 
   , Hu.testCase "Proper HEAD response" $ runTest $ do
       let req = Wai.defaultRequest
@@ -79,7 +96,7 @@ test1 = testGroup "Simple responses"
       T.assertNoHeader "Cache-Control" resp
 
   , testGroup "Missing responses at wrong methods"
-    $ flip map ["DELETE", "POST", "PUT"] $ \method ->
+    $ flip map ["DELETE", "POST"] $ \method ->
       Hu.testCase ("Missing response at method " ++ method) $ runTest $ do
         let req =
               Wai.defaultRequest
