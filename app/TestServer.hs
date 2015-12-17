@@ -10,6 +10,7 @@ import           Network.Wai.Handler.Warp (run)
 import qualified Serv.Api                 as A
 import           Serv.Common
 import qualified Serv.ContentType         as Ct
+import qualified Serv.Cors                as Cors
 import qualified Serv.Header              as H
 import qualified Serv.Header.Proxies      as Hp
 import           Serv.Server
@@ -17,8 +18,9 @@ import           Serv.Server
 type RawBody = 'A.Body '[ Ct.TextPlain ] Text
 
 type Api
-  = 'A.Endpoint
-    '[ 'A.Method 'A.GET '[ 'H.CacheControl 'A.::: RawText ] RawBody ]
+  = 'A.Cors Cors.PermitAll 'A.:>
+    'A.Endpoint
+      '[ 'A.Method 'A.GET '[ 'H.CacheControl 'A.::: RawText ] RawBody ]
 
 apiProxy :: Proxy Api
 apiProxy = Proxy

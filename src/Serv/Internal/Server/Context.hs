@@ -55,8 +55,8 @@ corsHeaders
   :: (Analysis.HeadersExpectedOf methods,
      Analysis.HeadersReturnedBy methods,
      Analysis.VerbsOf methods)
-  => Proxy methods -> Context -> Maybe [HTTP.Header]
-corsHeaders proxy ctx = do
+  => Proxy methods -> Bool -> Context -> Maybe [HTTP.Header]
+corsHeaders proxy includeMethods ctx = do
   let derivedExpected = Analysis.headersExpectedOf proxy
       derivedReturned = Analysis.headersReturnedBy proxy
       derivedVerbs = Analysis.verbsOf proxy
@@ -73,7 +73,7 @@ corsHeaders proxy ctx = do
         , Cors.methodsAvailable = derivedVerbs
         }
   let accessSet = foldMap (\p -> p conf corsContext) policyChain
-  return (Cors.headerSet corsContext accessSet)
+  return (Cors.headerSet includeMethods corsContext accessSet)
 
 makeContext :: Config -> Wai.Request -> IO Context
 makeContext theConfig theRequest = do

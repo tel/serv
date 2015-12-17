@@ -72,6 +72,7 @@ test1 = testGroup "Simple responses"
       T.assertHeader "Access-Control-Expose-Headers" "X-Csrf-Token" resp
       T.assertHeader "Access-Control-Allow-Credentials" "true" resp
       T.assertHeader "Access-Control-Allow-Headers" "If-Range" resp
+      T.assertNoHeader "Access-Control-Allow-Methods" resp
 
   , Hu.testCase "CORS successful OPTIONS pre-flight response" $ runTest $ do
       let req = Wai.defaultRequest

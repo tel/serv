@@ -31,22 +31,27 @@ data PermitAll
 instance CorsPolicy PermitAll where
   corsPolicy _ = permitAll
 
-headerSet :: Context -> AccessSet -> [HTTP.Header]
-headerSet ctx access
+headerSet :: Bool -> Context -> AccessSet -> [HTTP.Header]
+headerSet includeMethods ctx access
   | not (originAllowed access) = []
   | otherwise =
     let maxAgeH =
           case maxAge access of
             Nothing -> []
             Just ndt -> [Hs.headerPair Hp.accessControlMaxAge ndt]
+        methodsAllowedH =
+          if includeMethods
+            then [Hs.headerPair Hp.accessControlAllowMethods (methodsAllowed access)]
+            else []
 
     in maxAgeH
+       ++
+       methodsAllowedH
        ++
        [ Hs.headerPair Hp.accessControlAllowOrigin (origin ctx)
        , Hs.headerPair Hp.accessControlExposeHeaders (headersExposed access)
        , Hs.headerPair Hp.accessControlAllowHeaders (headersAllowed access)
        , Hs.headerPair Hp.accessControlAllowCredentials (credentialsAllowed access)
-       , Hs.headerPair Hp.accessControlAllowMethods (methodsAllowed access)
        ]
 
 -- | The 'CorsContext' provides data from which we can make choices about

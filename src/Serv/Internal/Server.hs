@@ -180,16 +180,19 @@ instance
         else do
           let method = Context.method ctx
               requestHeaders = Context.requestHeadersSeen ctx
-              corsHeaders = fromMaybe []
-                              $ Context.corsHeaders
-                                (Proxy :: Proxy methods)
-                                ctx
+              methodsProxy = Proxy :: Proxy methods
           if | method == HTTP.methodOptions ->
-               return (addHeaders corsHeaders $ defaultOptionsResponse verbs)
+                 return $ defaultOptionsResponse verbs
+                        & addHeaders (
+                            fromMaybe [] $ Context.corsHeaders methodsProxy True ctx
+                          )
 
              | verbMatch verbs method -> do
                  value <- runServer (handle (Proxy :: Proxy methods) impl) ctx
-                 return (addHeaders corsHeaders value)
+                 return $ value
+                        & addHeaders (
+                            fromMaybe [] $ Context.corsHeaders methodsProxy False ctx
+                          )
 
              | otherwise ->
                -- TODO: Probably a double-check; trying the method implementations
