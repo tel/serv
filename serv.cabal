@@ -44,6 +44,7 @@ library
     Serv.Server
 
   build-depends:       base >= 4.7 && < 5
+                     , aeson
                      , bytestring
                      , case-insensitive
                      , containers
