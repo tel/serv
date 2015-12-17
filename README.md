@@ -3,6 +3,8 @@
 
 *Dependently typed API servers, clients, and documentation.*
 
+[![Build Status](https://travis-ci.org/tel/serv.svg)](https://travis-ci.org/tel/serv)
+
 Serv separates the description of an API from the implementation of the server,
 the client definitions, and the documentation. Unlike other such efforts, the
 API descriptions are *types* and type level computation can be used to ensure
