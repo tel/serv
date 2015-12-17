@@ -5,10 +5,7 @@ import           Control.Applicative
 import           Data.Monoid
 import           Data.Proxy
 import           Data.Set                           (Set)
-import qualified Data.Set                           as Set
-import           Data.String
 import           Data.Text                          (Text)
-import           Data.Text.Encoding                 (encodeUtf8)
 import           Data.Time
 import qualified Network.HTTP.Types                 as HTTP
 import qualified Serv.Header.Proxies                as Hp
@@ -113,7 +110,7 @@ instance Monoid AccessSet where
 -- | The most permissive CORS 'Policy' possible. Differs from Wildcard in
 -- that it allows credentials. Max age is not provided (so no caching)
 permitAll :: Policy
-permitAll config ctx =
+permitAll _config ctx =
   AccessSet
   { originAllowed  = True
   , headersExposed = headersReturned ctx

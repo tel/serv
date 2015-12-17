@@ -16,7 +16,6 @@ import qualified Serv.ContentType    as Ct
 import qualified Serv.Header         as H
 import qualified Serv.Header.Proxies as Hp
 import           Serv.Server
-import           Test.HUnit
 import           Test.Tasty
 import qualified Test.Tasty.HUnit    as Hu
 

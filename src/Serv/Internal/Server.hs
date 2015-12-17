@@ -15,7 +15,6 @@ module Serv.Internal.Server where
 
 import           Data.Function                ((&))
 import           Data.Maybe
-import           Data.Monoid
 import           Data.Proxy
 import           Data.Set                     (Set)
 import qualified Data.Set                     as Set
@@ -179,7 +178,6 @@ instance
         then routingError Error.NotFound
         else do
           let method = Context.method ctx
-              requestHeaders = Context.requestHeadersSeen ctx
               methodsProxy = Proxy :: Proxy methods
           if | method == HTTP.methodOptions ->
                  return $ defaultOptionsResponse verbs

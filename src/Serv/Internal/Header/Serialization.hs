@@ -8,7 +8,6 @@ module Serv.Internal.Header.Serialization where
 
 import qualified Data.ByteString           as S
 import qualified Data.CaseInsensitive      as CI
-import           Data.List                 (sort)
 import           Data.Proxy
 import           Data.Set                  (Set)
 import qualified Data.Set                  as Set
@@ -48,18 +47,18 @@ instance HeaderEncode 'Allow [Verb] where
   headerEncode prx verbs = headerEncode prx (Set.fromList verbs)
 
 instance HeaderEncode 'AccessControlExposeHeaders (Set HTTP.HeaderName) where
-  headerEncode prx headers =
+  headerEncode _ headers =
     Text.intercalate "," (map (Text.decodeUtf8 . CI.original) (Set.toList headers))
 
 instance HeaderEncode 'AccessControlAllowHeaders (Set HTTP.HeaderName) where
-  headerEncode prx headers =
+  headerEncode _ headers =
     Text.intercalate "," (map (Text.decodeUtf8 . CI.original) (Set.toList headers))
 
 instance HeaderEncode 'AccessControlMaxAge NominalDiffTime where
-  headerEncode prx ndt = Text.pack (show (round ndt))
+  headerEncode _ ndt = Text.pack (show (round ndt :: Int))
 
 instance HeaderEncode 'AccessControlAllowOrigin Text where
-  headerEncode prx origin = origin
+  headerEncode _ org = org
 
 instance HeaderEncode 'AccessControlAllowMethods (Set Verb) where
   headerEncode _ verbs =

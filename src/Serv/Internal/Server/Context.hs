@@ -20,7 +20,6 @@ import           Data.Proxy
 import           Data.Set                    (Set)
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
-import           Data.Text.Encoding          (decodeUtf8')
 import qualified Network.HTTP.Types          as HTTP
 import qualified Network.Wai                 as Wai
 import qualified Serv.Header.Proxies         as Hp
