@@ -6,6 +6,10 @@ addons:
     packages:
       - libgmp-dev
 
+cache:
+  directories:
+  - $HOME/.stack/
+
 before_install:
   # stack
   - mkdir -p ~/.local/bin
@@ -14,7 +18,7 @@ before_install:
 
 install:
   - ./travis/long stack --no-terminal --skip-ghc-check setup
-  - ./travis/long stack --no-terminal --skip-ghc-check test --only-snapshot
+  - ./travis/long stack --no-terminal --skip-ghc-check test --only-snapshot --fast --pedantic
 
 script:
   - stack --no-terminal --skip-ghc-check test
