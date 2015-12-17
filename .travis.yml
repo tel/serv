@@ -21,4 +21,4 @@ install:
   - ./travis/long stack --no-terminal --skip-ghc-check test --only-snapshot --fast --pedantic
 
 script:
-  - stack --no-terminal --skip-ghc-check test
+  - stack --no-terminal --skip-ghc-check test --fast --pedantic
