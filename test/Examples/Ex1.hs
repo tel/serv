@@ -62,6 +62,12 @@ test1 = testGroup "Simple responses"
       T.assertBody "Hello" resp
       T.assertHeader "Cache-Control" "foo" resp
 
+  , Hu.testCase "404 response (RawText) at ////" $ runTest $ do
+      let req = Wai.defaultRequest
+                & flip T.setPath "////"
+      resp <- T.request req
+      T.assertStatus 404 resp
+
   , Hu.testCase "Constant PUT response (JSON)" $ runTest $ do
       let req = Wai.defaultRequest { Wai.requestMethod = "PUT" }
       resp <- T.request req
