@@ -10,6 +10,44 @@ the client definitions, and the documentation. Unlike other such efforts, the
 API descriptions are *types* and type level computation can be used to ensure
 that the server, client, and documentation *always match*.
 
+# Overview
+
+Most APIs have a simple regular structure which is shared by the server, the
+clients, and (hopefully) the documentation. *This repetition is bad* leading to
+overhead, mismatching, and casualities of API drift in clients and
+documentation.
+
+Serv solves this problem by letting you specify your entire API structure once,
+canonically, and then either implement or derive servers, clients, and
+documentation from it.
+
+This solution is not new, but Serv takes it one step further by having the API
+specification be written *in the type system* which allows for static assurance
+that the server, client, and documentation cannot possibly drift from one
+another.
+
+## How Serv Works
+
+Serv lets you specify your API as a type. 
+
+For instance, if your have an API-description type `A` then `Impl A IO` is the
+type of a server implementation (running in the `IO` monad) which necessarily
+follows the same structure as `A`. It will require this server to consume data
+read from the path, will automatically route things properly, and ensures that
+endpoints deliver the proper bodies and headers. 
+
+All of this is statically assured, constructed from data in `A`.
+
+This works by leveraging the weak *dependent type* capabilities in Haskell’s
+type system enabling compile-time analysis of the type structure of `A`.
+Whatever data can be read from `A` is used to handle the boring, repetitive
+parts of your server automatically. For the interesting parts, Serv requires
+that you specify the responses your server provides according to the exact
+specification listed in `A`.
+
+Similar type functions and analyses are performed to enable Serv to generate
+documentation and client libraries (these to come!).
+
 # Tutorial
 
 ## Describing HTTP Methods
