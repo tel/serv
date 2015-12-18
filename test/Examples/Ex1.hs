@@ -23,7 +23,7 @@ type RawBody = 'A.Body '[ Ct.TextPlain ] Text
 type JSONBody = 'A.Body '[ Ct.JSON ] [Int]
 
 type Api
-  = 'A.Endpoint
+  = 'A.Endpoint ()
     '[ 'A.Method 'A.GET '[ 'H.CacheControl 'A.::: RawText ] RawBody
      , 'A.Method 'A.PUT '[ 'H.CacheControl 'A.::: RawText ] JSONBody
      ]

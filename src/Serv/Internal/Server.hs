@@ -163,9 +163,9 @@ instance
    HeadersReturnedBy methods,
    HeadersExpectedOf methods,
    Handling methods)
-  => Handling ('Endpoint (methods :: [Method *]))
+  => Handling ('Endpoint ann (methods :: [Method *]))
   where
-    type Impl ('Endpoint methods) m = Impl methods m
+    type Impl ('Endpoint ann methods) m = Impl methods m
     handle Proxy impl = Server $ \ctx -> do
       let pathIsEmpty = Context.pathIsEmpty ctx
       if not pathIsEmpty

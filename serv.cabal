@@ -17,6 +17,7 @@ library
   exposed-modules:
 
     Serv.Api
+    Serv.Api.Annotation
     Serv.Common
     Serv.ContentType
     Serv.Cors
@@ -24,6 +25,7 @@ library
     Serv.Header.Proxies
     Serv.URI
     Serv.Internal.Api
+    Serv.Internal.Api.Annotation
     Serv.Internal.Api.Analysis
     Serv.Internal.Cors
     Serv.Internal.Header

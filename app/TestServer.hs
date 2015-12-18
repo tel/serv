@@ -19,7 +19,7 @@ type RawBody = 'A.Body '[ Ct.TextPlain ] Text
 
 type Api
   = 'A.Cors Cors.PermitAll 'A.:>
-    'A.Endpoint
+    'A.Endpoint ()
       '[ 'A.Method 'A.GET '[ 'H.CacheControl 'A.::: RawText ] RawBody ]
 
 apiProxy :: Proxy Api

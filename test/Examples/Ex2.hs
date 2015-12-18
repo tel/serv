@@ -25,10 +25,11 @@ type RawBody = 'A.Body '[ Ct.TextPlain ] Text
 
 type Api
   = 'A.Cors Cors.PermitAll 'A.:>
-    'A.Header 'H.IfRange (Maybe RawText) 'A.:> 'A.Endpoint
-    '[ 'A.Method 'A.GET '[ 'H.XCsrfToken 'A.::: RawText ] RawBody
-     , 'A.Method 'A.DELETE '[] 'A.Empty
-     ]
+    'A.Header 'H.IfRange (Maybe RawText) 'A.:>
+    'A.Endpoint ()
+      '[ 'A.Method 'A.GET '[ 'H.XCsrfToken 'A.::: RawText ] RawBody
+       , 'A.Method 'A.DELETE '[] 'A.Empty
+       ]
 
 apiProxy :: Proxy Api
 apiProxy = Proxy

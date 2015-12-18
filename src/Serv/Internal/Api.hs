@@ -39,7 +39,7 @@ import           Serv.Internal.Verb
 --
 -- Qualify an API using a series of 'Path' qualifiers.
 data Api star where
-  Endpoint :: [Method star] -> Api star
+  Endpoint :: star -> [Method star] -> Api star
   OneOf :: [Api star] -> Api star
   Raw :: Api star
   (:>) :: Path star -> Api star -> Api star
