@@ -75,8 +75,6 @@ TODO
 - [X] Seg name value :> api
 - [X] Header name value :> api
 - [X] Wildcard :> api
-- [ ] Flag name :> api
-- [ ] QueryParam name value :> api
 - [X] Cors :> api
 
 -}

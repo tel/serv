@@ -90,17 +90,10 @@ data Body star where
 --
 -- Always matches, "captures" the remaining path segments as a list
 -- of text values. May just capture the empty list.
---
--- Always matches, "captures" the existence of a query flag by
--- returning 'True' if the flag is provided and 'False' otherwise.
---
--- Always matches, "capturing" the value of a query parameter.
 data Path star where
   Const :: Symbol -> Path star
   HeaderAs :: HeaderName -> Symbol -> Path star
   Seg :: Symbol -> star -> Path star
   Header :: HeaderName -> star -> Path star
   Wildcard :: Path star
-  Flag :: Symbol -> Path star
-  QueryParam :: Symbol -> star -> Path star
   Cors :: star -> Path star
