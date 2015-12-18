@@ -48,12 +48,18 @@ instance HeaderEncode 'Allow [Verb] where
   headerEncode prx verbs = headerEncode prx (Set.fromList verbs)
 
 instance HeaderEncode 'AccessControlExposeHeaders (Set HTTP.HeaderName) where
-  headerEncode _ headers =
-    Just $ Text.intercalate "," (map (Text.decodeUtf8 . CI.original) (Set.toList headers))
+  headerEncode _ headers
+    | Set.null headers = Nothing
+    | otherwise =
+        Just $ Text.intercalate ","
+               (map (Text.decodeUtf8 . CI.original) (Set.toList headers))
 
 instance HeaderEncode 'AccessControlAllowHeaders (Set HTTP.HeaderName) where
-  headerEncode _ headers =
-    Just $ Text.intercalate "," (map (Text.decodeUtf8 . CI.original) (Set.toList headers))
+  headerEncode _ headers
+    | Set.null headers = Nothing
+    | otherwise =
+        Just $ Text.intercalate ","
+               (map (Text.decodeUtf8 . CI.original) (Set.toList headers))
 
 instance HeaderEncode 'AccessControlMaxAge NominalDiffTime where
   headerEncode _ ndt = Just $ Text.pack (show (round ndt :: Int))
@@ -62,8 +68,11 @@ instance HeaderEncode 'AccessControlAllowOrigin Text where
   headerEncode _ org = Just org
 
 instance HeaderEncode 'AccessControlAllowMethods (Set Verb) where
-  headerEncode _ verbs =
-    Just $ Text.intercalate "," (map (Text.decodeUtf8 . standardName) (Set.toList verbs))
+  headerEncode _ verbs
+    | Set.null verbs = Nothing
+    | otherwise =
+        Just $ Text.intercalate ","
+               (map (Text.decodeUtf8 . standardName) (Set.toList verbs))
 
 instance HeaderEncode 'AccessControlAllowMethods [Verb] where
   headerEncode prx verbs = headerEncode prx (Set.fromList verbs)
