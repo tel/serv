@@ -2,6 +2,8 @@
 module Serv.Internal.Cors where
 
 import           Control.Applicative
+import           Control.Monad
+import           Data.Maybe                         (catMaybes)
 import           Data.Monoid
 import           Data.Proxy
 import           Data.Set                           (Set)
@@ -32,24 +34,15 @@ headerSet :: Bool -> Context -> AccessSet -> [HTTP.Header]
 headerSet includeMethods ctx access
   | not (originAllowed access) = []
   | otherwise =
-    let maxAgeH =
-          case maxAge access of
-            Nothing -> []
-            Just ndt -> [Hs.headerPair Hp.accessControlMaxAge ndt]
-        methodsAllowedH =
-          if includeMethods
-            then [Hs.headerPair Hp.accessControlAllowMethods (methodsAllowed access)]
-            else []
-
-    in maxAgeH
-       ++
-       methodsAllowedH
-       ++
-       [ Hs.headerPair Hp.accessControlAllowOrigin (origin ctx)
-       , Hs.headerPair Hp.accessControlExposeHeaders (headersExposed access)
-       , Hs.headerPair Hp.accessControlAllowHeaders (headersAllowed access)
-       , Hs.headerPair Hp.accessControlAllowCredentials (credentialsAllowed access)
-       ]
+      catMaybes
+      [ Hs.headerPair Hp.accessControlMaxAge (maxAge access)
+      , do guard includeMethods
+           Hs.headerPair Hp.accessControlAllowMethods (methodsAllowed access)
+      , Hs.headerPair Hp.accessControlAllowOrigin (origin ctx)
+      , Hs.headerPair Hp.accessControlExposeHeaders (headersExposed access)
+      , Hs.headerPair Hp.accessControlAllowHeaders (headersAllowed access)
+      , Hs.headerPair Hp.accessControlAllowCredentials (credentialsAllowed access)
+      ]
 
 -- | The 'CorsContext' provides data from which we can make choices about
 -- how to respond to CORS requests.

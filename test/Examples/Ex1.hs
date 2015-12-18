@@ -4,9 +4,9 @@
 
 module Examples.Ex1 where
 
-import Data.String
 import           Data.Function       ((&))
 import           Data.Proxy
+import           Data.String
 import           Data.Text           (Text)
 import qualified Network.Wai         as Wai
 import qualified Network.Wai.Test    as T

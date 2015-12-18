@@ -165,13 +165,14 @@ withQuietHeader
      => Proxy name -> value
      -> Response headers body -> Response headers body
 withQuietHeader proxy value r =
-  case r of
-    Response status secretHeaders headers body ->
-      Response status (newHeader : secretHeaders) headers body
-    EmptyResponse status secretHeaders headers ->
-      EmptyResponse status (newHeader : secretHeaders) headers
-  where
-    newHeader = (Header.reflectName proxy, Header.headerEncodeRaw proxy value)
+  case Header.headerPair proxy value of
+    Nothing -> r
+    Just newHeader ->
+      case r of
+        Response status secretHeaders headers body ->
+          Response status (newHeader : secretHeaders) headers body
+        EmptyResponse status secretHeaders headers ->
+          EmptyResponse status (newHeader : secretHeaders) headers
 
 -- | If a response type is complete defined by its implementation then
 -- applying 'resorted' to it will future proof it against reorderings

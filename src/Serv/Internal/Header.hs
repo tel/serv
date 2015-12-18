@@ -15,6 +15,7 @@ module Serv.Internal.Header (
   ReflectHeaderNames (..),
   HeaderEncode (..),
   headerEncodeRaw,
+  headerPair,
   HeaderDecode (..),
   headerDecodeRaw
 
@@ -56,5 +57,8 @@ instance
   where
     reflectHeaders (Cons val headers) =
       -- NOTE: Utf8 encoding is somewhat significantly too lax
-        (reflectName proxy, encodeUtf8 (headerEncode proxy val)) : reflectHeaders headers
-      where proxy = Proxy :: Proxy name
+      case headerEncode proxy val of
+        Nothing -> reflectHeaders headers
+        Just txt -> (reflectName proxy, encodeUtf8 txt) : reflectHeaders headers
+      where
+        proxy = Proxy :: Proxy name

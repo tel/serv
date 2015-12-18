@@ -84,13 +84,9 @@ TODO
 encodeBody :: WaiResponse hdrs body => Context -> Response hdrs body -> ServerValue
 encodeBody ctx resp =
   case acceptHdr of
-    Nothing -> WaiResponse (waiResponse [] resp)
-    Just (Left _err) ->
-      let msg = "could not parse acceptable content types"
-      in RoutingError (Error.BadRequest (Just msg))
-    Just (Right acceptList) ->
+    Left _ -> WaiResponse (waiResponse [] resp)
+    Right acceptList ->
       WaiResponse (waiResponse acceptList resp)
-
   where
     (_, acceptHdr) = Context.examineHeader Hp.accept ctx
 
@@ -130,9 +126,7 @@ instance
        then routingError Error.NotFound
        else do
          resp <- mresp
-         let (_ctx', eitAccepts) =
-               Context.examineHeader (Proxy :: Proxy 'Header.Accept) ctx
-         case fromMaybe (Right []) eitAccepts of
+         case snd (Context.examineHeader Hp.accept ctx) of
            Left _err ->
              routingError
              (Error.BadRequest
@@ -219,9 +213,7 @@ defaultOptionsResponse verbs =
   WaiResponse
   $ Wai.responseLBS
     HTTP.ok200
-    [("Allow", Header.headerEncodeRaw
-               (Proxy :: Proxy 'Header.Allow)
-               orderedVerbs)]
+    (catMaybes [Header.headerPair Hp.allow orderedVerbs])
     ""
   where
     allVerbs =
@@ -279,15 +271,14 @@ instance (Header.ReflectName n, KnownSymbol v, Handling api) => Handling ('Heade
 instance
   (Header.HeaderDecode n v, Handling api) => Handling ('Header n v ':> api)
   where
-    type Impl ('Header n v ':> api) m = Maybe v -> Impl api m
+    type Impl ('Header n v ':> api) m = v -> Impl api m
     handle _ impl = Server $ \ctx -> do
       let headerProxy = Proxy :: Proxy n
           (ctx', m) = Context.examineHeader headerProxy ctx
           next = handle (Proxy :: Proxy api) . impl
       case m of
-        Nothing -> runServer (next Nothing) ctx'
-        Just (Left parseError) -> routingError (Error.BadRequest (Just parseError))
-        Just (Right value) -> runServer (next (Just value)) ctx'
+        Left parseError -> routingError (Error.BadRequest (Just parseError))
+        Right value -> runServer (next value) ctx'
 
 instance (URI.URIDecode v, Handling api) => Handling ('Seg n v ':> api) where
   type Impl ('Seg n v ':> api) m = Tagged n v -> Impl api m

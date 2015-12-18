@@ -132,9 +132,9 @@ pullHeaderRaw name ctx =
 -- | Pull a header value from the context, updating it to note that we looked
 examineHeader
   :: Header.HeaderDecode n a
-     => Proxy n -> Context -> (Context, Maybe (Either String a))
+     => Proxy n -> Context -> (Context, Either String a)
 examineHeader proxy ctx =
-  (newContext, Header.headerDecodeRaw proxy <$> rawString)
+  (newContext, Header.headerDecodeRaw proxy rawString)
   where
     headerName = Header.reflectName proxy
     (newContext, rawString) = pullHeaderRaw headerName ctx
@@ -144,10 +144,9 @@ examineHeader proxy ctx =
 -- distinguishing between decoding failure and outright not being there at
 -- all!
 examineHeaderFast :: Header.HeaderDecode n a => Proxy n -> Context -> Maybe a
-examineHeaderFast proxy ctx = do
-  let (_, mayHdr) = pullHeaderRaw (Header.reflectName proxy) ctx
-  hdrRaw <- mayHdr
-  hush (Header.headerDecodeRaw proxy hdrRaw)
+examineHeaderFast proxy ctx =
+  let (_, hdr) = pullHeaderRaw (Header.reflectName proxy) ctx
+  in hush (Header.headerDecodeRaw proxy hdr)
   where
     hush :: Either e a -> Maybe a
     hush (Left _) = Nothing
