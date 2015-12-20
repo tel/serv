@@ -18,7 +18,6 @@ import           Serv.Internal.Header (HeaderName)
 import           Serv.Internal.Pair
 import           Serv.Internal.Verb
 
-
 -- | 'Api's describe collections of HTTP endpoints accessible at
 -- various segmented 'Path's.
 --

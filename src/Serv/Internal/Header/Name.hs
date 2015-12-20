@@ -1,32 +1,33 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE KindSignatures      #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE PolyKinds           #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE KindSignatures             #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE PolyKinds                  #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 module Serv.Internal.Header.Name where
 
+import           Data.CaseInsensitive     (CI)
+import qualified Data.CaseInsensitive     as CI
 import           Data.Proxy
+import           Data.Singletons
+import           Data.Singletons.TypeLits
 import           Data.String
-import           GHC.TypeLits
-import qualified Network.HTTP.Types as HTTP
+import           Data.Text                (Text)
+import qualified Data.Text                as Text
 
--- This is a GHC 8 feature. It won't work today because we
--- cannot promote a GADT the way that we'd like to. Otherwise,
--- we'd let each name specify its "direction".
---
--- For instance, we'd have
---
---     data HeaderName (d :: Direction) where
---       Name :: Symbol -> HeaderName d
---       CacheControl :: HeaderName d
---       Accept :: HeaderName Request
---       Allow :: HeaderName Response
---
--- etc.
---
---     -- | Qualifier of header types.
---     data Direction = Request | Response
+-- | Header types are distinguished by name. Any given 'HeaderType' has and
+-- is distinguished by a case-insensitive 'HeaderName'.
+newtype HeaderName
+  = HeaderName { getHeaderName :: CI Text }
+  deriving ( Eq, Ord, Show, IsString )
 
 -- | The variant (name and meaning) of a HTTP header.
 --
@@ -35,12 +36,12 @@ import qualified Network.HTTP.Types as HTTP
 -- be specified using the 'Name' constructor.
 --
 -- Used only as their @DataKinds@ types system.
-data HeaderName
+data HeaderType
 
   ---- WILDCARD HEADER NAMES
 
-  = HeaderName Symbol
-    -- ^ Inject an arbitatry symbol in as a 'HeaderName'. This can be used to
+  = CustomHeader Symbol
+    -- ^ Inject an arbitatry symbol in as a 'HeaderType'. This can be used to
     -- implement any sort of custom header
 
 
@@ -440,286 +441,296 @@ data HeaderName
     --
     --     WWW-Authenticate: Basic
 
--- | Implements reflection of 'Name' types into 'HTTP.HeaderName' values for runtime use.
-class ReflectName (n :: HeaderName) where
-  reflectName :: proxy n -> HTTP.HeaderName
-
-
--- Proxies
--- ----------------------------------------------------------------------------
-
-cacheControl :: Proxy 'CacheControl
-cacheControl = Proxy
-
-connection :: Proxy 'Connection
-connection = Proxy
-
-contentLength :: Proxy 'ContentLength
-contentLength = Proxy
-
-contentType :: Proxy 'ContentType
-contentType = Proxy
-
-date :: Proxy 'Date
-date = Proxy
-
-pragma :: Proxy 'Pragma
-pragma = Proxy
-
-upgrade :: Proxy 'Upgrade
-upgrade = Proxy
-
-via :: Proxy 'Via
-via = Proxy
-
-warning :: Proxy 'Warning
-warning = Proxy
-
-accept :: Proxy 'Accept
-accept = Proxy
-
-acceptCharset :: Proxy 'AcceptCharset
-acceptCharset = Proxy
-
-acceptEncoding :: Proxy 'AcceptEncoding
-acceptEncoding = Proxy
-
-acceptLanguage :: Proxy 'AcceptLanguage
-acceptLanguage = Proxy
-
-accessControlRequestMethod :: Proxy 'AccessControlRequestMethod
-accessControlRequestMethod = Proxy
-
-accessControlRequestHeaders :: Proxy 'AccessControlRequestHeaders
-accessControlRequestHeaders = Proxy
-
-authorization :: Proxy 'Authorization
-authorization = Proxy
-
-cookie :: Proxy 'Cookie
-cookie = Proxy
-
-expect :: Proxy 'Expect
-expect = Proxy
-
-from :: Proxy 'From
-from = Proxy
-
-host :: Proxy 'Host
-host = Proxy
-
-ifMatch :: Proxy 'IfMatch
-ifMatch = Proxy
-
-ifModifiedSince :: Proxy 'IfModifiedSince
-ifModifiedSince = Proxy
-
-ifNoneMatch :: Proxy 'IfNoneMatch
-ifNoneMatch = Proxy
-
-ifRange :: Proxy 'IfRange
-ifRange = Proxy
-
-ifUnmodifiedSince :: Proxy 'IfUnmodifiedSince
-ifUnmodifiedSince = Proxy
-
-maxForwards :: Proxy 'MaxForwards
-maxForwards = Proxy
-
-origin :: Proxy 'Origin
-origin = Proxy
-
-proxyAuthorization :: Proxy 'ProxyAuthorization
-proxyAuthorization = Proxy
-
-range :: Proxy 'Range
-range = Proxy
-
-referer :: Proxy 'Referer
-referer = Proxy
-
-tE :: Proxy 'TE
-tE = Proxy
-
-userAgent :: Proxy 'UserAgent
-userAgent = Proxy
-
-xForwardedFor :: Proxy 'XForwardedFor
-xForwardedFor = Proxy
-
-xForwardedHost :: Proxy 'XForwardedHost
-xForwardedHost = Proxy
-
-xForwardedProto :: Proxy 'XForwardedProto
-xForwardedProto = Proxy
-
-xCsrfToken :: Proxy 'XCsrfToken
-xCsrfToken = Proxy
-
-accessControlAllowOrigin :: Proxy 'AccessControlAllowOrigin
-accessControlAllowOrigin = Proxy
-
-accessControlExposeHeaders :: Proxy 'AccessControlExposeHeaders
-accessControlExposeHeaders = Proxy
-
-accessControlMaxAge :: Proxy 'AccessControlMaxAge
-accessControlMaxAge = Proxy
-
-accessControlAllowCredentials :: Proxy 'AccessControlAllowCredentials
-accessControlAllowCredentials = Proxy
-
-accessControlAllowMethods :: Proxy 'AccessControlAllowMethods
-accessControlAllowMethods = Proxy
-
-accessControlAllowHeaders :: Proxy 'AccessControlAllowHeaders
-accessControlAllowHeaders = Proxy
-
-acceptPatch :: Proxy 'AcceptPatch
-acceptPatch = Proxy
-
-acceptRanges :: Proxy 'AcceptRanges
-acceptRanges = Proxy
-
-age :: Proxy 'Age
-age = Proxy
-
-allow :: Proxy 'Allow
-allow = Proxy
-
-contentDisposition :: Proxy 'ContentDisposition
-contentDisposition = Proxy
-
-contentEncoding :: Proxy 'ContentEncoding
-contentEncoding = Proxy
-
-contentLanguage :: Proxy 'ContentLanguage
-contentLanguage = Proxy
-
-contentLocation :: Proxy 'ContentLocation
-contentLocation = Proxy
-
-contentRange :: Proxy 'ContentRange
-contentRange = Proxy
-
-contentSecurityPolicy :: Proxy 'ContentSecurityPolicy
-contentSecurityPolicy = Proxy
-
-eTag :: Proxy 'ETag
-eTag = Proxy
-
-expires :: Proxy 'Expires
-expires = Proxy
-
-lastModified :: Proxy 'LastModified
-lastModified = Proxy
-
-link :: Proxy 'Link
-link = Proxy
-
-location :: Proxy 'Location
-location = Proxy
-
-proxyAuthenticate :: Proxy 'ProxyAuthenticate
-proxyAuthenticate = Proxy
-
-publicKeyPins :: Proxy 'PublicKeyPins
-publicKeyPins = Proxy
-
-retryAfter :: Proxy 'RetryAfter
-retryAfter = Proxy
-
-setCookie :: Proxy 'SetCookie
-setCookie = Proxy
-
-strictTransportSecurity :: Proxy 'StrictTransportSecurity
-strictTransportSecurity = Proxy
-
-trailer :: Proxy 'Trailer
-trailer = Proxy
-
-transferEncoding :: Proxy 'TransferEncoding
-transferEncoding = Proxy
-
-vary :: Proxy 'Vary
-vary = Proxy
-
-wWWAuthenticate :: Proxy 'WWWAuthenticate
-wWWAuthenticate = Proxy
-
-
--- ReflectName Instances
---
--- A very verbose way of matching on lots of simple types. Not really worth
--- your time reading. Heavy potential for bugs.
--- ----------------------------------------------------------------------------
-
-
-instance KnownSymbol s => ReflectName ('HeaderName s) where
-  reflectName _ = fromString (symbolVal (Proxy :: Proxy s))
-
-instance ReflectName 'CacheControl where reflectName _ = "Cache-Control"
-instance ReflectName 'Connection where reflectName _ = "Connection"
-instance ReflectName 'ContentLength where reflectName _ = "Content-Length"
-instance ReflectName 'ContentType where reflectName _ = "Content-Type"
-instance ReflectName 'Date where reflectName _ = "Date"
-instance ReflectName 'Pragma where reflectName _ = "Pragma"
-instance ReflectName 'Upgrade where reflectName _ = "Upgrade"
-instance ReflectName 'Via where reflectName _ = "Via"
-instance ReflectName 'Warning where reflectName _ = "Warning"
-instance ReflectName 'Accept where reflectName _ = "Accept"
-instance ReflectName 'AcceptCharset where reflectName _ = "Accept-Charset"
-instance ReflectName 'AcceptEncoding where reflectName _ = "Accept-Encoding"
-instance ReflectName 'AcceptLanguage where reflectName _ = "Accept-Language"
-instance ReflectName 'AccessControlRequestMethod where reflectName _ = "Access-Control-Request-Method"
-instance ReflectName 'AccessControlRequestHeaders where reflectName _ = "Access-Control-Request-Headers"
-instance ReflectName 'Authorization where reflectName _ = "Authorization"
-instance ReflectName 'Cookie where reflectName _ = "Cookie"
-instance ReflectName 'Expect where reflectName _ = "Expect"
-instance ReflectName 'From where reflectName _ = "From"
-instance ReflectName 'Host where reflectName _ = "Host"
-instance ReflectName 'IfMatch where reflectName _ = "If-Match"
-instance ReflectName 'IfModifiedSince where reflectName _ = "If-Modified-Since"
-instance ReflectName 'IfNoneMatch where reflectName _ = "If-None-Match"
-instance ReflectName 'IfRange where reflectName _ = "If-Range"
-instance ReflectName 'IfUnmodifiedSince where reflectName _ = "If-Unmodified-Since"
-instance ReflectName 'MaxForwards where reflectName _ = "Max-Forwards"
-instance ReflectName 'Origin where reflectName _ = "Origin"
-instance ReflectName 'ProxyAuthorization where reflectName _ = "Proxy-Authorization"
-instance ReflectName 'Range where reflectName _ = "Range"
-instance ReflectName 'Referer where reflectName _ = "Referer"
-instance ReflectName 'TE where reflectName _ = "TE"
-instance ReflectName 'UserAgent where reflectName _ = "User-Agent"
-instance ReflectName 'XForwardedFor where reflectName _ = "X-Forwarded-For"
-instance ReflectName 'XForwardedHost where reflectName _ = "X-Forwarded-Host"
-instance ReflectName 'XForwardedProto where reflectName _ = "X-Forwarded-Proto"
-instance ReflectName 'XCsrfToken where reflectName _ = "X-Csrf-Token"
-instance ReflectName 'AccessControlAllowOrigin where reflectName _ = "Access-Control-Allow-Origin"
-instance ReflectName 'AccessControlExposeHeaders where reflectName _ = "Access-Control-Expose-Headers"
-instance ReflectName 'AccessControlMaxAge where reflectName _ = "Access-Control-Max-Age"
-instance ReflectName 'AccessControlAllowCredentials where reflectName _ = "Access-Control-Allow-Credentials"
-instance ReflectName 'AccessControlAllowMethods where reflectName _ = "Access-Control-Allow-Methods"
-instance ReflectName 'AccessControlAllowHeaders where reflectName _ = "Access-Control-Allow-Headers"
-instance ReflectName 'AcceptPatch where reflectName _ = "Accept-Patch"
-instance ReflectName 'AcceptRanges where reflectName _ = "Accept-Ranges"
-instance ReflectName 'Age where reflectName _ = "Age"
-instance ReflectName 'Allow where reflectName _ = "Allow"
-instance ReflectName 'ContentDisposition where reflectName _ = "Content-Disposition"
-instance ReflectName 'ContentEncoding where reflectName _ = "Content-Encoding"
-instance ReflectName 'ContentLanguage where reflectName _ = "Content-Language"
-instance ReflectName 'ContentLocation where reflectName _ = "Content-Location"
-instance ReflectName 'ContentRange where reflectName _ = "Content-Range"
-instance ReflectName 'ContentSecurityPolicy where reflectName _ = "Content-Security-Policy"
-instance ReflectName 'ETag where reflectName _ = "ETag"
-instance ReflectName 'Expires where reflectName _ = "Expires"
-instance ReflectName 'LastModified where reflectName _ = "Last-Modified"
-instance ReflectName 'Link where reflectName _ = "Link"
-instance ReflectName 'Location where reflectName _ = "Location"
-instance ReflectName 'ProxyAuthenticate where reflectName _ = "Proxy-Authenticate"
-instance ReflectName 'PublicKeyPins where reflectName _ = "Public-Key-Pins"
-instance ReflectName 'RetryAfter where reflectName _ = "Retry-After"
-instance ReflectName 'SetCookie where reflectName _ = "Set-Cookie"
-instance ReflectName 'StrictTransportSecurity where reflectName _ = "Strict-Transport-Security"
-instance ReflectName 'Trailer where reflectName _ = "Trailer"
-instance ReflectName 'TransferEncoding where reflectName _ = "Transfer-Encoding"
-instance ReflectName 'Vary where reflectName _ = "Vary"
-instance ReflectName 'WWWAuthenticate where reflectName _ = "WWW-Authenticate"
+data instance Sing (n :: HeaderType) where
+
+  ---- WILDCARD HEADER NAMES
+  SCustomHeader :: KnownSymbol n => Sing n -> Sing ('CustomHeader n)
+
+  ---- COMMON HEADER NAMES
+  SCacheControl :: Sing 'CacheControl
+  SConnection :: Sing 'Connection
+  SContentLength :: Sing 'ContentLength
+  SContentType :: Sing 'ContentType
+  SDate :: Sing 'Date
+  SPragma :: Sing 'Pragma
+  SUpgrade :: Sing 'Upgrade
+  SVia :: Sing 'Via
+  SWarning :: Sing 'Warning
+
+  ---- REQUEST-SPECIFIC HEADER NAMES
+  SAccept :: Sing 'Accept
+  SAcceptCharset :: Sing 'AcceptCharset
+  SAcceptEncoding :: Sing 'AcceptEncoding
+  SAcceptLanguage :: Sing 'AcceptLanguage
+  SAccessControlRequestMethod :: Sing 'AccessControlRequestMethod
+  SAccessControlRequestHeaders :: Sing 'AccessControlRequestHeaders
+  SAuthorization :: Sing 'Authorization
+  SCookie :: Sing 'Cookie
+  SExpect :: Sing 'Expect
+  SFrom :: Sing 'From
+  SHost :: Sing 'Host
+  SIfMatch :: Sing 'IfMatch
+  SIfModifiedSince :: Sing 'IfModifiedSince
+  SIfNoneMatch :: Sing 'IfNoneMatch
+  SIfRange :: Sing 'IfRange
+  SIfUnmodifiedSince :: Sing 'IfUnmodifiedSince
+  SMaxForwards :: Sing 'MaxForwards
+  SOrigin :: Sing 'Origin
+  SProxyAuthorization :: Sing 'ProxyAuthorization
+  SRange :: Sing 'Range
+  SReferer :: Sing 'Referer
+  STE :: Sing 'TE
+  SUserAgent :: Sing 'UserAgent
+  SXForwardedFor :: Sing 'XForwardedFor
+  SXForwardedHost :: Sing 'XForwardedHost
+  SXForwardedProto :: Sing 'XForwardedProto
+  SXCsrfToken :: Sing 'XCsrfToken
+
+  ---- RESPONSE-SPECIFIC HEADER NAMES
+  SAccessControlAllowOrigin :: Sing 'AccessControlAllowOrigin
+  SAccessControlExposeHeaders :: Sing 'AccessControlExposeHeaders
+  SAccessControlMaxAge :: Sing 'AccessControlMaxAge
+  SAccessControlAllowCredentials :: Sing 'AccessControlAllowCredentials
+  SAccessControlAllowMethods :: Sing 'AccessControlAllowMethods
+  SAccessControlAllowHeaders :: Sing 'AccessControlAllowHeaders
+  SAcceptPatch :: Sing 'AcceptPatch
+  SAcceptRanges :: Sing 'AcceptRanges
+  SAge :: Sing 'Age
+  SAllow :: Sing 'Allow
+  SContentDisposition :: Sing 'ContentDisposition
+  SContentEncoding :: Sing 'ContentEncoding
+  SContentLanguage :: Sing 'ContentLanguage
+  SContentLocation :: Sing 'ContentLocation
+  SContentRange :: Sing 'ContentRange
+  SContentSecurityPolicy :: Sing 'ContentSecurityPolicy
+  SETag :: Sing 'ETag
+  SExpires :: Sing 'Expires
+  SLastModified :: Sing 'LastModified
+  SLink :: Sing 'Link
+  SLocation :: Sing 'Location
+  SProxyAuthenticate :: Sing 'ProxyAuthenticate
+  SPublicKeyPins :: Sing 'PublicKeyPins
+  SRetryAfter :: Sing 'RetryAfter
+  SSetCookie :: Sing 'SetCookie
+  SStrictTransportSecurity :: Sing 'StrictTransportSecurity
+  STrailer :: Sing 'Trailer
+  STransferEncoding :: Sing 'TransferEncoding
+  SVary :: Sing 'Vary
+  SWWWAuthenticate :: Sing 'WWWAuthenticate
+
+instance SingKind ('KProxy :: KProxy HeaderType) where
+  type DemoteRep ('KProxy :: KProxy HeaderType) =
+    HeaderName
+
+  fromSing s = case s of
+
+    SCustomHeader name -> fromString (symbolVal name)
+
+    SCacheControl -> "Cache-Control"
+    SConnection -> "Connection"
+    SContentLength -> "Content-Length"
+    SContentType -> "Content-Type"
+    SDate -> "Date"
+    SPragma -> "Pragma"
+    SUpgrade -> "Upgrade"
+    SVia -> "Via"
+    SWarning -> "Warning"
+    SAccept -> "Accept"
+    SAcceptCharset -> "Accept-Charset"
+    SAcceptEncoding -> "Accept-Encoding"
+    SAcceptLanguage -> "Accept-Language"
+    SAccessControlRequestMethod -> "Access-Control-Request-Method"
+    SAccessControlRequestHeaders -> "Access-Control-Request-Headers"
+    SAuthorization -> "Authorization"
+    SCookie -> "Cookie"
+    SExpect -> "Expect"
+    SFrom -> "From"
+    SHost -> "Host"
+    SIfMatch -> "If-Match"
+    SIfModifiedSince -> "If-Modified-Since"
+    SIfNoneMatch -> "If-None-Match"
+    SIfRange -> "If-Range"
+    SIfUnmodifiedSince -> "If-Unmodified-Since"
+    SMaxForwards -> "Max-Forwards"
+    SOrigin -> "Origin"
+    SProxyAuthorization -> "Proxy-Authorization"
+    SRange -> "Range"
+    SReferer -> "Referer"
+    STE -> "TE"
+    SUserAgent -> "User-Agent"
+    SXForwardedFor -> "X-Forwarded-For"
+    SXForwardedHost -> "X-Forwarded-Host"
+    SXForwardedProto -> "X-Forwarded-Proto"
+    SXCsrfToken -> "X-Csrf-Token"
+    SAccessControlAllowOrigin -> "Access-Control-Allow-Origin"
+    SAccessControlExposeHeaders -> "Access-Control-Expose-Headers"
+    SAccessControlMaxAge -> "Access-Control-Max-Age"
+    SAccessControlAllowCredentials -> "Access-Control-Allow-Credentials"
+    SAccessControlAllowMethods -> "Access-Control-Allow-Methods"
+    SAccessControlAllowHeaders -> "Access-Control-Allow-Headers"
+    SAcceptPatch -> "Accept-Patch"
+    SAcceptRanges -> "Accept-Ranges"
+    SAge -> "Age"
+    SAllow -> "Allow"
+    SContentDisposition -> "Content-Disposition"
+    SContentEncoding -> "Content-Encoding"
+    SContentLanguage -> "Content-Language"
+    SContentLocation -> "Content-Location"
+    SContentRange -> "Content-Range"
+    SContentSecurityPolicy -> "Content-Security-Policy"
+    SETag -> "ETag"
+    SExpires -> "Expires"
+    SLastModified -> "Last-Modified"
+    SLink -> "Link"
+    SLocation -> "Location"
+    SProxyAuthenticate -> "Proxy-Authenticate"
+    SPublicKeyPins -> "Public-Key-Pins"
+    SRetryAfter -> "Retry-After"
+    SSetCookie -> "Set-Cookie"
+    SStrictTransportSecurity -> "Strict-Transport-Security"
+    STrailer -> "Trailer"
+    STransferEncoding -> "Transfer-Encoding"
+    SVary -> "Vary"
+    SWWWAuthenticate -> "WWW-Authenticate"
+
+  toSing r =
+    case r of
+      "Cache-Control" -> SomeSing SCacheControl
+      "Connection" -> SomeSing SConnection
+      "Content-Length" -> SomeSing SContentLength
+      "Content-Type" -> SomeSing SContentType
+      "Date" -> SomeSing SDate
+      "Pragma" -> SomeSing SPragma
+      "Upgrade" -> SomeSing SUpgrade
+      "Via" -> SomeSing SVia
+      "Warning" -> SomeSing SWarning
+      "Accept" -> SomeSing SAccept
+      "Accept-Charset" -> SomeSing SAcceptCharset
+      "Accept-Encoding" -> SomeSing SAcceptEncoding
+      "Accept-Language" -> SomeSing SAcceptLanguage
+      "Access-Control-Request-Method" -> SomeSing SAccessControlRequestMethod
+      "Access-Control-Request-Headers" -> SomeSing SAccessControlRequestHeaders
+      "Authorization" -> SomeSing SAuthorization
+      "Cookie" -> SomeSing SCookie
+      "Expect" -> SomeSing SExpect
+      "From" -> SomeSing SFrom
+      "Host" -> SomeSing SHost
+      "If-Match" -> SomeSing SIfMatch
+      "If-Modified-Since" -> SomeSing SIfModifiedSince
+      "If-None-Match" -> SomeSing SIfNoneMatch
+      "If-Range" -> SomeSing SIfRange
+      "If-Unmodified-Since" -> SomeSing SIfUnmodifiedSince
+      "Max-Forwards" -> SomeSing SMaxForwards
+      "Origin" -> SomeSing SOrigin
+      "Proxy-Authorization" -> SomeSing SProxyAuthorization
+      "Range" -> SomeSing SRange
+      "Referer" -> SomeSing SReferer
+      "TE" -> SomeSing STE
+      "User-Agent" -> SomeSing SUserAgent
+      "X-Forwarded-For" -> SomeSing SXForwardedFor
+      "X-Forwarded-Host" -> SomeSing SXForwardedHost
+      "X-Forwarded-Proto" -> SomeSing SXForwardedProto
+      "X-Csrf-Token" -> SomeSing SXCsrfToken
+      "Access-Control-Allow-Origin" -> SomeSing SAccessControlAllowOrigin
+      "Access-Control-Expose-Headers" -> SomeSing SAccessControlExposeHeaders
+      "Access-Control-Max-Age" -> SomeSing SAccessControlMaxAge
+      "Access-Control-Allow-Credentials" -> SomeSing SAccessControlAllowCredentials
+      "Access-Control-Allow-Methods" -> SomeSing SAccessControlAllowMethods
+      "Access-Control-Allow-Headers" -> SomeSing SAccessControlAllowHeaders
+      "Accept-Patch" -> SomeSing SAcceptPatch
+      "Accept-Ranges" -> SomeSing SAcceptRanges
+      "Age" -> SomeSing SAge
+      "Allow" -> SomeSing SAllow
+      "Content-Disposition" -> SomeSing SContentDisposition
+      "Content-Encoding" -> SomeSing SContentEncoding
+      "Content-Language" -> SomeSing SContentLanguage
+      "Content-Location" -> SomeSing SContentLocation
+      "Content-Range" -> SomeSing SContentRange
+      "Content-Security-Policy" -> SomeSing SContentSecurityPolicy
+      "ETag" -> SomeSing SETag
+      "Expires" -> SomeSing SExpires
+      "Last-Modified" -> SomeSing SLastModified
+      "Link" -> SomeSing SLink
+      "Location" -> SomeSing SLocation
+      "Proxy-Authenticate" -> SomeSing SProxyAuthenticate
+      "Public-Key-Pins" -> SomeSing SPublicKeyPins
+      "Retry-After" -> SomeSing SRetryAfter
+      "Set-Cookie" -> SomeSing SSetCookie
+      "Strict-Transport-Security" -> SomeSing SStrictTransportSecurity
+      "Trailer" -> SomeSing STrailer
+      "Transfer-Encoding" -> SomeSing STransferEncoding
+      "Vary" -> SomeSing SVary
+      "WWW-Authenticate" -> SomeSing SWWWAuthenticate
+
+      custom ->
+        withSomeSing
+        (Text.unpack . CI.original . getHeaderName $ custom)
+        (\s -> SomeSing (withKnownSymbol s (SCustomHeader s)))
+
+instance KnownSymbol n => SingI ('CustomHeader n) where sing = SCustomHeader (sing :: Sing n)
+instance SingI 'CacheControl where sing = SCacheControl
+instance SingI 'Connection where sing = SConnection
+instance SingI 'ContentLength where sing = SContentLength
+instance SingI 'ContentType where sing = SContentType
+instance SingI 'Date where sing = SDate
+instance SingI 'Pragma where sing = SPragma
+instance SingI 'Upgrade where sing = SUpgrade
+instance SingI 'Via where sing = SVia
+instance SingI 'Warning where sing = SWarning
+instance SingI 'Accept where sing = SAccept
+instance SingI 'AcceptCharset where sing = SAcceptCharset
+instance SingI 'AcceptEncoding where sing = SAcceptEncoding
+instance SingI 'AcceptLanguage where sing = SAcceptLanguage
+instance SingI 'AccessControlRequestMethod where sing = SAccessControlRequestMethod
+instance SingI 'AccessControlRequestHeaders where sing = SAccessControlRequestHeaders
+instance SingI 'Authorization where sing = SAuthorization
+instance SingI 'Cookie where sing = SCookie
+instance SingI 'Expect where sing = SExpect
+instance SingI 'From where sing = SFrom
+instance SingI 'Host where sing = SHost
+instance SingI 'IfMatch where sing = SIfMatch
+instance SingI 'IfModifiedSince where sing = SIfModifiedSince
+instance SingI 'IfNoneMatch where sing = SIfNoneMatch
+instance SingI 'IfRange where sing = SIfRange
+instance SingI 'IfUnmodifiedSince where sing = SIfUnmodifiedSince
+instance SingI 'MaxForwards where sing = SMaxForwards
+instance SingI 'Origin where sing = SOrigin
+instance SingI 'ProxyAuthorization where sing = SProxyAuthorization
+instance SingI 'Range where sing = SRange
+instance SingI 'Referer where sing = SReferer
+instance SingI 'TE where sing = STE
+instance SingI 'UserAgent where sing = SUserAgent
+instance SingI 'XForwardedFor where sing = SXForwardedFor
+instance SingI 'XForwardedHost where sing = SXForwardedHost
+instance SingI 'XForwardedProto where sing = SXForwardedProto
+instance SingI 'XCsrfToken where sing = SXCsrfToken
+instance SingI 'AccessControlAllowOrigin where sing = SAccessControlAllowOrigin
+instance SingI 'AccessControlExposeHeaders where sing = SAccessControlExposeHeaders
+instance SingI 'AccessControlMaxAge where sing = SAccessControlMaxAge
+instance SingI 'AccessControlAllowCredentials where sing = SAccessControlAllowCredentials
+instance SingI 'AccessControlAllowMethods where sing = SAccessControlAllowMethods
+instance SingI 'AccessControlAllowHeaders where sing = SAccessControlAllowHeaders
+instance SingI 'AcceptPatch where sing = SAcceptPatch
+instance SingI 'AcceptRanges where sing = SAcceptRanges
+instance SingI 'Age where sing = SAge
+instance SingI 'Allow where sing = SAllow
+instance SingI 'ContentDisposition where sing = SContentDisposition
+instance SingI 'ContentEncoding where sing = SContentEncoding
+instance SingI 'ContentLanguage where sing = SContentLanguage
+instance SingI 'ContentLocation where sing = SContentLocation
+instance SingI 'ContentRange where sing = SContentRange
+instance SingI 'ContentSecurityPolicy where sing = SContentSecurityPolicy
+instance SingI 'ETag where sing = SETag
+instance SingI 'Expires where sing = SExpires
+instance SingI 'LastModified where sing = SLastModified
+instance SingI 'Link where sing = SLink
+instance SingI 'Location where sing = SLocation
+instance SingI 'ProxyAuthenticate where sing = SProxyAuthenticate
+instance SingI 'PublicKeyPins where sing = SPublicKeyPins
+instance SingI 'RetryAfter where sing = SRetryAfter
+instance SingI 'SetCookie where sing = SSetCookie
+instance SingI 'StrictTransportSecurity where sing = SStrictTransportSecurity
+instance SingI 'Trailer where sing = STrailer
+instance SingI 'TransferEncoding where sing = STransferEncoding
+instance SingI 'Vary where sing = SVary
+instance SingI 'WWWAuthenticate where sing = SWWWAuthenticate

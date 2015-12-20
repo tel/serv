@@ -46,6 +46,7 @@ library
     Serv.Server
 
   build-depends:       base >= 4.7 && < 5
+
                      , aeson
                      , bytestring
                      , case-insensitive
@@ -53,11 +54,13 @@ library
                      , http-media
                      , http-types
                      , mtl
+                     , singletons
                      , tagged
                      , text
                      , time
                      , transformers
                      , wai
+
   default-language:    Haskell2010
 
 executable test-server
