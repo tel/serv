@@ -96,4 +96,4 @@ test-suite serv-test
 
 source-repository head
   type:     git
-  location: https://github.com/githubuser/serv
+  location: https://github.com/tel/serv
