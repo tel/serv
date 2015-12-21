@@ -7,19 +7,21 @@
 
 module Serv.Internal.Header.Serialization where
 
-import qualified Data.ByteString           as S
-import qualified Data.CaseInsensitive      as CI
+import qualified Data.ByteString       as S
+import qualified Data.CaseInsensitive  as CI
 import           Data.Proxy
-import           Data.Set                  (Set)
-import qualified Data.Set                  as Set
-import           Data.Text                 (Text)
-import qualified Data.Text                 as Text
-import qualified Data.Text.Encoding        as Text
+import           Data.Set              (Set)
+import qualified Data.Set              as Set
+import           Data.Singletons
+import           Data.Text             (Text)
+import qualified Data.Text             as Text
+import qualified Data.Text.Encoding    as Text
 import           Data.Time
-import           Network.HTTP.Media        (MediaType, Quality, parseQuality)
-import qualified Network.HTTP.Types        as HTTP
-import           Serv.Internal.Header.Name
+import           Network.HTTP.Media    (MediaType, Quality, parseQuality)
+import qualified Network.HTTP.Types    as HTTP
+import           Serv.Internal.Header
 import           Serv.Internal.RawText
+import           Serv.Internal.Rec
 import           Serv.Internal.Verb
 
 -- | Represents mechanisms to interpret data types as header-compatible values.
@@ -30,14 +32,14 @@ import           Serv.Internal.Verb
 -- Note: While this class allows the encoding of any value into a full Unicode
 -- Text value, Headers do not generally accept most Unicode code points. Be
 -- conservative in implementing this class.
-class ReflectName n => HeaderEncode (n :: HeaderName) a where
+class HeaderEncode (n :: HeaderType) a where
   headerEncode :: Proxy n -> a -> Maybe Text
 
 -- | Handles encoding a header all the way to /raw/ bytes.
 headerEncodeRaw :: HeaderEncode n a => Proxy n -> a -> Maybe S.ByteString
 headerEncodeRaw proxy = fmap Text.encodeUtf8 . headerEncode proxy
 
-instance ReflectName n => HeaderEncode n RawText where
+instance HeaderEncode n RawText where
   headerEncode _ (RawText text) = Just text
 
 instance HeaderEncode 'Allow (Set Verb) where
@@ -82,15 +84,15 @@ instance HeaderEncode 'AccessControlAllowCredentials Bool where
     | ok = Just "true"
     | otherwise = Just "false"
 
-instance {-# OVERLAPPABLE #-} ReflectName n => HeaderEncode n Bool where
+instance {-# OVERLAPPABLE #-} HeaderEncode n Bool where
   headerEncode _ ok
     | ok = Just "true"
     | otherwise = Just "false"
 
-instance {-# OVERLAPPABLE #-} ReflectName n => HeaderEncode n Int where
+instance {-# OVERLAPPABLE #-} HeaderEncode n Int where
   headerEncode _ i = Just $ Text.pack (show i)
 
-instance {-# OVERLAPPABLE #-} ReflectName n => HeaderEncode n Text where
+instance {-# OVERLAPPABLE #-} HeaderEncode n Text where
   headerEncode _ t = Just t
 
 instance {-# OVERLAPPABLE #-} HeaderEncode h t => HeaderEncode h (Maybe t) where
@@ -100,7 +102,7 @@ instance {-# OVERLAPPABLE #-} HeaderEncode h t => HeaderEncode h (Maybe t) where
 --
 -- An instance of @Decode n t@ captures a mechanism for reading values of type
 -- @t@ from header data stored at header @n@.
-class ReflectName n => HeaderDecode (n :: HeaderName) a where
+class HeaderDecode (n :: HeaderType) a where
   headerDecode :: Proxy n -> Maybe Text -> Either String a
 
 headerDecode' :: HeaderDecode n a => Proxy n -> Text -> Either String a
@@ -121,7 +123,7 @@ headerDecodeRaw proxy mays =
         Right t -> headerDecode' proxy t
 
 -- | 'RawText' enables capturing the data untouched from the header
-instance ReflectName n => HeaderDecode n RawText where
+instance HeaderDecode n RawText where
   headerDecode _ = required $ \text -> Right (RawText text)
 
 instance HeaderDecode 'Accept [Quality MediaType] where
@@ -135,5 +137,11 @@ instance {-# OVERLAPPABLE #-} HeaderDecode h t => HeaderDecode h (Maybe t) where
   headerDecode _ Nothing = Right Nothing
   headerDecode p (Just t) = fmap Just (headerDecode' p t)
 
-headerPair :: HeaderEncode h v => Proxy h -> v -> Maybe HTTP.Header
-headerPair proxy v = fmap (reflectName proxy,) (headerEncodeRaw proxy v)
+headerPair :: (SingI h, HeaderEncode h v) => Proxy h -> v -> Maybe HTTP.Header
+headerPair proxy v =
+  fmap (rawHeaderName (fromSing sing),) (headerEncodeRaw proxy v)
+  where
+    name = fromSing sing
+    sing = singByProxy proxy
+
+

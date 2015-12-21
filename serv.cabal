@@ -29,7 +29,6 @@ library
     Serv.Internal.Api.Analysis
     Serv.Internal.Cors
     Serv.Internal.Header
-    Serv.Internal.Header.Name
     Serv.Internal.Header.Serialization
     Serv.Internal.MediaType
     Serv.Internal.Pair

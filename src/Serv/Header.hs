@@ -8,5 +8,5 @@ module Serv.Header (
 
   ) where
 
-import Serv.Internal.Header.Name
+import Serv.Internal.Header
 import Serv.Internal.Header.Serialization
