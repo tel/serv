@@ -41,6 +41,7 @@ library
     Serv.Internal.Server.Type
     Serv.Internal.URI
     Serv.Internal.Verb
+    Serv.Internal.TypeLevel
     Serv.Server
 
   build-depends:       base >= 4.7 && < 5

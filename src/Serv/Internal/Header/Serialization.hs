@@ -19,6 +19,7 @@ import qualified Data.CaseInsensitive        as CI
 import           Data.Set                    (Set)
 import qualified Data.Set                    as Set
 import           Data.Singletons
+import           Data.Singletons.Prelude
 import           Data.Singletons.TypeRepStar
 import           Data.Text                   (Text)
 import qualified Data.Text                   as Text
@@ -32,24 +33,8 @@ import           Serv.Internal.Header
 import           Serv.Internal.Pair
 import           Serv.Internal.RawText
 import           Serv.Internal.Rec
+import           Serv.Internal.TypeLevel
 import           Serv.Internal.Verb
-
--- | Encode a header type and a corresponding value into a full header pair.
-headerPair :: HeaderEncode h v => Sing h -> v -> Maybe HTTP.Header
-headerPair sing v = (headerName sing, ) <$> headerEncodeRaw sing v
-
--- | Convert a record of headers into a raw bytes format
-encodeHeaders :: AllC HeaderEncode rs => Rec rs -> [HTTP.Header]
-encodeHeaders rec =
-  case rec of
-    Nil -> []
-    Cons val rest ->
-      case headerPair (firstName rec) val of
-         Nothing -> encodeHeaders rest
-         Just hdr -> hdr : encodeHeaders rest
-  where
-    firstName :: SingI name => Rec (name ::: ty ': rs) -> Sing name
-    firstName _ = sing
 
 -- Classes
 -- ----------------------------------------------------------------------------
@@ -90,6 +75,25 @@ headerDecodeRaw proxy mays =
         Left err -> Left (show err)
         Right t -> headerDecode' proxy t
 
+-- Analysis
+-- ----------------------------------------------------------------------------
+
+-- | Encode a header type and a corresponding value into a full header pair.
+headerPair :: HeaderEncode h v => Sing h -> v -> Maybe HTTP.Header
+headerPair sing v = (headerName sing, ) <$> headerEncodeRaw sing v
+
+firstName :: SingI name => Rec (name ::: ty ': rs) -> Sing name
+firstName _ = sing
+
+-- | Convert a record of headers into a raw bytes format
+encodeHeaders :: (AllC (UncurrySym1 (TyCon2 HeaderEncode)) rs)  => Rec rs -> [HTTP.Header]
+encodeHeaders rec =
+  case rec of
+    Nil -> []
+    Cons val rest ->
+      case headerPair (firstName rec) val of
+         Nothing -> encodeHeaders rest
+         Just hdr -> hdr : encodeHeaders rest
 
 -- Instances
 -- ----------------------------------------------------------------------------

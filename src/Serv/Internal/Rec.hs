@@ -24,10 +24,6 @@ data Rec rs where
 (-:) :: Proxy name -> ty -> Rec rs -> Rec (name ::: ty ': rs)
 (-:) _ = Cons
 
-type family AllC (c :: k1 -> k2 -> Constraint) (rs :: [ (k1, k2) ]) :: Constraint where
-  AllC c '[] = ()
-  AllC c (name ::: ty ': xs) = (c name ty, AllC c xs)
-
 class Elem name e es where
   eGet :: Rec es -> Tagged name e
   eMap :: Tagged name (e -> e) -> Rec es -> Rec es
