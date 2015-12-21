@@ -1,15 +1,17 @@
 {-# LANGUAGE DataKinds            #-}
 {-# LANGUAGE GADTs                #-}
 {-# LANGUAGE KindSignatures       #-}
+{-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE TemplateHaskell      #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Serv.Internal.Verb where
 
-import           Data.Proxy
 import           Data.Singletons
 import           Data.Singletons.TH
+import           Data.String
+import           Data.Text
 import qualified Network.HTTP.Types as HTTP
 
 -- TRACE is intentionally omitted because (a) it's very low value and (b)
@@ -29,13 +31,13 @@ singletons
         deriving ( Eq, Ord, Show, Read )
   |]
 
--- | Convert a 'Verb' to its http-types form
-standardName :: Verb -> HTTP.Method
-standardName v = case v of
-  GET -> HTTP.methodGet
-  HEAD -> HTTP.methodHead
-  POST -> HTTP.methodPost
-  PUT -> HTTP.methodPut
-  PATCH -> HTTP.methodPatch
-  DELETE -> HTTP.methodDelete
-  OPTIONS -> HTTP.methodOptions
+standardName :: IsString t => Verb -> t
+standardName v =
+  case v of
+    GET -> "GET"
+    HEAD -> "HEAD"
+    POST -> "POST"
+    PUT -> "PUT"
+    PATCH -> "PATCH"
+    DELETE -> "DELETE"
+    OPTIONS -> "OPTIONS"
