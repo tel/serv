@@ -13,6 +13,9 @@ import           Data.Proxy
 import           Network.HTTP.Media (MediaType)
 import qualified Network.HTTP.Media as Media
 
+-- Classes
+-- ----------------------------------------------------------------------------
+
 class HasMediaType ty where
   mediaType :: Proxy ty -> MediaType
 
@@ -21,7 +24,6 @@ class HasMediaType ty => MimeEncode ty val where
 
 class HasMediaType ty => MimeDecode ty val where
   mimeDecode :: Proxy ty -> S.ByteString -> Either String val
-
 
 negotiateContent
   :: ReflectEncoders ctypes a =>

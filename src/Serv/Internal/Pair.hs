@@ -1,20 +1,9 @@
-{-# LANGUAGE DataKinds            #-}
-{-# LANGUAGE FlexibleContexts     #-}
-{-# LANGUAGE GADTs                #-}
-{-# LANGUAGE PolyKinds            #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE TemplateHaskell      #-}
-{-# LANGUAGE TypeFamilies         #-}
-{-# LANGUAGE TypeOperators        #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DataKinds     #-}
+{-# LANGUAGE PolyKinds     #-}
+{-# LANGUAGE TypeOperators #-}
 
+-- | Type synonym that's a bit nicer to read than normal type-tuples
 module Serv.Internal.Pair where
 
-import           Data.Singletons.TH
-
--- | Equivalent to a tuple at both the type and kind levels,
--- but has a nicer syntax!
-
-singletons [d| data Pair a b = a ::: b |]
-
+type a ::: b = '( a, b )
 infixr 6 :::

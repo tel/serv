@@ -1,6 +1,4 @@
 {-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
@@ -8,8 +6,11 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TupleSections         #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
 
 module Serv.Internal.Header.Serialization where
 
@@ -18,14 +19,13 @@ import qualified Data.CaseInsensitive        as CI
 import           Data.Set                    (Set)
 import qualified Data.Set                    as Set
 import           Data.Singletons
-import           Data.Singletons.Prelude
 import           Data.Singletons.TypeRepStar
 import           Data.Text                   (Text)
 import qualified Data.Text                   as Text
 import qualified Data.Text.Encoding          as Text
 import           Data.Time
+import           GHC.Exts
 import           GHC.TypeLits
-import GHC.Exts
 import           Network.HTTP.Media          (MediaType, Quality, parseQuality)
 import qualified Network.HTTP.Types          as HTTP
 import           Serv.Internal.Header
@@ -38,40 +38,18 @@ import           Serv.Internal.Verb
 headerPair :: HeaderEncode h v => Sing h -> v -> Maybe HTTP.Header
 headerPair sing v = (headerName sing, ) <$> headerEncodeRaw sing v
 
-type family HeaderEncodeAll rs :: Constraint where
-  HeaderEncodeAll '[] = ()
-  HeaderEncodeAll ( n '::: ty ': rs) = (HeaderEncode n ty, HeaderEncodeAll rs)
-
--- recDestruct
---   :: forall (rs :: [ Pair (HeaderType Symbol) * ]) r
---   . SingI rs
---   => (forall (h :: HeaderType Symbol) v . Sing h -> v -> r -> r) -> r
---   -> (Rec rs -> r)
--- recDestruct cons nil rec =
---   withSing $ \ (sRs :: Sing rs) ->
---     case sRs of
---       SNil -> nil
---       SCons (hd :: Sing (hdr '::: ty)) tl -> _
-  -- case rec of
-  --   Nil -> nil
-  --   Cons a tl -> withSing (\s -> cons s a (recDestruct cons nil tl))
-
--- Q: How to realize HeaderEncode dictionary along the entire record
--- Q: How to pattern match on the record to properly capture the inner bits
-
--- encodeHeaders
---   :: forall (rs :: [ Pair (HeaderType Symbol) * ])
---   . HeaderEncodeAll rs
---   => Rec rs -> [HTTP.Header]
--- encodeHeaders rec =
---   case rec of
---     Nil -> []
---     Cons val rest ->
---       withSing $ \(singHeader ::
---       case headerPair sHead val of
---         Just v -> v : encodeHeaders rest
---         Nothing -> encodeHeaders rest
-
+-- | Convert a record of headers into a raw bytes format
+encodeHeaders :: AllC HeaderEncode rs => Rec rs -> [HTTP.Header]
+encodeHeaders rec =
+  case rec of
+    Nil -> []
+    Cons val rest ->
+      case headerPair (firstName rec) val of
+         Nothing -> encodeHeaders rest
+         Just hdr -> hdr : encodeHeaders rest
+  where
+    firstName :: SingI name => Rec (name ::: ty ': rs) -> Sing name
+    firstName _ = sing
 
 -- Classes
 -- ----------------------------------------------------------------------------
@@ -84,7 +62,7 @@ type family HeaderEncodeAll rs :: Constraint where
 -- Note: While this class allows the encoding of any value into a full Unicode
 -- Text value, Headers do not generally accept most Unicode code points. Be
 -- conservative in implementing this class.
-class HeaderEncode (n :: HeaderType Symbol) a where
+class SingI n => HeaderEncode (n :: HeaderType Symbol) a where
   headerEncode :: Sing n -> a -> Maybe Text
 
 -- | Handles encoding a header all the way to /raw/ bytes.
@@ -96,7 +74,7 @@ headerEncodeRaw sing = fmap Text.encodeUtf8 . headerEncode sing
 --
 -- An instance of @Decode n t@ captures a mechanism for reading values of type
 -- @t@ from header data stored at header @n@.
-class HeaderDecode (n :: HeaderType Symbol) a where
+class SingI n => HeaderDecode (n :: HeaderType Symbol) a where
   headerDecode :: Sing n -> Maybe Text -> Either String a
 
 headerDecode' :: HeaderDecode n a => Sing n -> Text -> Either String a
@@ -130,7 +108,7 @@ uniqueSet s = headerEncode s . Set.fromList
 trueFalse :: Sing n -> Bool -> Maybe Text
 trueFalse _ ok = Just (if ok then "true" else "false")
 
-instance HeaderEncode n RawText where
+instance SingI n => HeaderEncode n RawText where
   headerEncode _ (RawText text) = Just text
 
 instance HeaderEncode 'Allow (Set Verb) where
@@ -166,10 +144,10 @@ instance HeaderEncode 'AccessControlAllowMethods [Verb] where
 instance HeaderEncode 'AccessControlAllowCredentials Bool where
   headerEncode = trueFalse
 
-instance {-# OVERLAPPABLE #-} HeaderEncode n Bool where
+instance {-# OVERLAPPABLE #-} SingI n => HeaderEncode n Bool where
   headerEncode = trueFalse
 
-instance {-# OVERLAPPABLE #-} HeaderEncode n Int where
+instance {-# OVERLAPPABLE #-} SingI n => HeaderEncode n Int where
   headerEncode _ i = Just (Text.pack (show i))
 
 instance {-# OVERLAPPABLE #-} HeaderEncode h t => HeaderEncode h (Maybe t) where
@@ -190,7 +168,7 @@ withDefault def _ Nothing = Right def
 withDefault _ f (Just a) = f a
 
 -- | 'RawText' enables capturing the data untouched from the header
-instance HeaderDecode n RawText where
+instance SingI n => HeaderDecode n RawText where
   headerDecode _ = required $ \text -> Right (RawText text)
 
 instance HeaderDecode 'Accept [Quality MediaType] where
