@@ -13,6 +13,8 @@ import           Data.Singletons.TH
 import           Data.String
 import           Data.Text
 import qualified Network.HTTP.Types as HTTP
+import qualified Data.ByteString as S
+import qualified Data.CaseInsensitive as CI
 
 -- TRACE is intentionally omitted because (a) it's very low value and (b)
 -- it opens a potential security hole via Cross-Site-Tracing. Instead of
@@ -31,8 +33,8 @@ singletons
         deriving ( Eq, Ord, Show, Read )
   |]
 
-standardName :: IsString t => Verb -> t
-standardName v =
+verbName :: IsString t => Verb -> t
+verbName v =
   case v of
     GET -> "GET"
     HEAD -> "HEAD"
@@ -41,3 +43,15 @@ standardName v =
     PATCH -> "PATCH"
     DELETE -> "DELETE"
     OPTIONS -> "OPTIONS"
+
+parseVerb :: S.ByteString -> Maybe Verb
+parseVerb s =
+  case CI.mk s of
+    "GET" -> Just GET
+    "HEAD" -> Just HEAD
+    "POST" -> Just POST
+    "PUT" -> Just PUT
+    "PATCH" -> Just PATCH
+    "DELETE" -> Just DELETE
+    "OPTIONS" -> Just OPTIONS
+    _ -> Nothing

@@ -1,48 +1,58 @@
 {-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeOperators         #-}
 
 module Serv.Internal.Server.Type where
 
-import Data.String
-import Data.Maybe (fromMaybe)
-import qualified Data.ByteString.Char8         as S8
-import qualified Data.ByteString.Lazy         as Sl
-import           Data.Function                ((&))
-import           Data.Proxy
-import           Network.HTTP.Media           (MediaType, Quality, renderHeader)
-import qualified Network.HTTP.Types           as HTTP
-import qualified Network.Wai                  as Wai
+import qualified Data.ByteString.Char8              as S8
+import qualified Data.ByteString.Lazy               as Sl
+import           Data.Function                      ((&))
+import           Data.Maybe                         (catMaybes)
+import           Data.Maybe                         (fromMaybe)
+import           Data.Set                           (Set)
+import qualified Data.Set                           as Set
+import           Data.Singletons
+import           Data.String
+import           GHC.TypeLits
+import           Network.HTTP.Media                 (MediaType, Quality,
+                                                     renderHeader)
+import qualified Network.HTTP.Types                 as HTTP
+import qualified Network.Wai                        as Wai
 import           Serv.Internal.Api
-import qualified Serv.Internal.Header         as Header
-import qualified Serv.Internal.MediaType      as MediaType
+import qualified Serv.Internal.Header               as Header
+import qualified Serv.Internal.Header.Serialization as HeaderS
+import qualified Serv.Internal.MediaType            as MediaType
 import           Serv.Internal.Pair
 import           Serv.Internal.Rec
-import qualified Serv.Internal.Verb as Verb
-import           Serv.Internal.Server.Context (Context)
-import qualified Serv.Internal.Server.Context as Context
-import           Serv.Internal.Server.Error   (RoutingError)
-import qualified Serv.Internal.Server.Error   as Error
+import           Serv.Internal.Server.Context       (Context)
+import qualified Serv.Internal.Server.Context       as Context
+import           Serv.Internal.Server.Error         (RoutingError)
+import qualified Serv.Internal.Server.Error         as Error
+import qualified Serv.Internal.Verb                 as Verb
 
 -- | A server implementation which always results in a "Not Found" error. Used to
--- give semantics to "pathological" servers like @'OneOf '[]@ and @Endpoint '[]@.
+-- give semantics to "terminal" server @'OneOf '[]@.
 --
 -- These servers could be statically disallowed but (1) they have a semantic
 -- sense as described by this type exactly and (2) to do so would require the
 -- creation and management of either larger types or non-empty proofs which would
 -- be burdensome to carry about.
-data NotHere = NotHere
+data NotFound = NotFound
 
--- | Actual servers are implemented effectfully; this is a no-op server which
--- immediately returns Not Found and applies no effects.
-noOp :: Applicative m => m NotHere
-noOp = pure NotHere
+-- | A server implementation which always results in a "Method Not Allowed" error. Used to
+-- give semantics to the "terminal" server @Endpoint '[]@.
+--
+-- These servers could be statically disallowed but (1) they have a semantic
+-- sense as described by this type exactly and (2) to do so would require the
+-- creation and management of either larger types or non-empty proofs which would
+-- be burdensome to carry about.
+data MethodNotAllowed = MethodNotAllowed
 
 -- | Either one thing or the other. In particular, often this is used when we are
 -- describing either one server implementation or the other. Used to give
@@ -82,9 +92,10 @@ runServerWai context respond server = do
       Error.UnsupportedMediaType ->
         Wai.responseLBS HTTP.unsupportedMediaType415 [] ""
       Error.MethodNotAllowed verbs -> do
-        let verbNames = map Verb.standardName verbs
-            allowHeader = S8.intercalate "," verbNames
-        Wai.responseLBS HTTP.methodNotAllowed405 [("Allow", allowHeader)] ""
+        Wai.responseLBS
+          HTTP.methodNotAllowed405
+          (catMaybes [HeaderS.headerPair Header.SAllow verbs])
+          ""
 
     WaiResponse resp -> respond resp
 
@@ -118,6 +129,13 @@ orElse sa sb = Server $ \ctx -> do
       | otherwise -> return a
     _ -> return a
 
+-- | Server which immediately returns 'Error.NotFound'
+notFoundS :: Monad m => Server m
+notFoundS = Server $ \_ctx -> routingError Error.NotFound
+
+methodNotAllowedS :: Monad m => Set Verb.Verb -> Server m
+methodNotAllowedS vs = Server $ \_ctx -> routingError (Error.MethodNotAllowed vs)
+
 routingError :: Monad m => RoutingError -> m ServerValue
 routingError err = return (RoutingError err)
 
@@ -125,13 +143,13 @@ routingError err = return (RoutingError err)
 -- ----------------------------------------------------------------------------
 
 -- | Responses generated in 'Server' implementations.
-data Response (headers :: [Pair Header.HeaderName *]) body where
+data Response (headers :: [ (Header.HeaderType Symbol, *) ]) body where
   Response
     :: HTTP.Status
     -> [HTTP.Header]
     -> Rec headers
     -> a
-    -> Response headers ('Body ctypes a)
+    -> Response headers ('HasBody ctypes a)
   EmptyResponse
     :: HTTP.Status
     -> [HTTP.Header]
@@ -144,28 +162,28 @@ emptyResponse status = EmptyResponse status [] Nil
 
 -- | Adds a body to a response
 withBody
-  :: a -> Response headers 'Empty -> Response headers ('Body ctypes a)
+  :: a -> Response headers 'Empty -> Response headers ('HasBody ctypes a)
 withBody a (EmptyResponse status secretHeaders headers) =
   Response status secretHeaders headers a
 
 -- | Adds a header to a response
 withHeader
-  :: Proxy name -> value
-  -> Response headers body -> Response (name '::: value ': headers) body
-withHeader proxy val r = case r of
+  :: Sing name -> value
+  -> Response headers body -> Response (name ::: value ': headers) body
+withHeader s val r = case r of
   Response status secretHeaders headers body ->
-    Response status secretHeaders (headers & proxy -: val) body
+    Response status secretHeaders (headers & s -: val) body
   EmptyResponse status secretHeaders headers ->
-    EmptyResponse status secretHeaders (headers & proxy -: val)
+    EmptyResponse status secretHeaders (headers & s -: val)
 
 -- | Unlike 'withHeader', 'withQuietHeader' allows you to add headers
 -- not explicitly specified in the api specification.
 withQuietHeader
-  :: Header.HeaderEncode name value
-     => Proxy name -> value
+  :: HeaderS.HeaderEncode name value
+     => Sing name -> value
      -> Response headers body -> Response headers body
-withQuietHeader proxy value r =
-  case Header.headerPair proxy value of
+withQuietHeader s value r =
+  case HeaderS.headerPair s value of
     Nothing -> r
     Just newHeader ->
       case r of
@@ -200,22 +218,25 @@ deleteBody r =
 -- TODO: This is quite weird. It'd be better to have ReflectHeaders show up
 -- in fewer places
 
-class Header.ReflectHeaders headers => WaiResponse headers body where
-  waiResponse :: [Quality MediaType] -> Response headers body -> Wai.Response
+waiResponse :: [Quality MediaType] -> Response headers body -> Wai.Response
+waiResponse = undefined
 
-instance Header.ReflectHeaders headers => WaiResponse headers 'Empty where
-  waiResponse _ (EmptyResponse status secretHeaders headers) =
-    Wai.responseLBS status (secretHeaders ++ Header.reflectHeaders headers) ""
-
-instance
-  (Header.ReflectHeaders headers, MediaType.ReflectEncoders ctypes a) =>
-    WaiResponse headers ('Body ctypes a)
-  where
-    waiResponse accepts (Response status secretHeaders headers value) =
-      case MediaType.negotiateContentAlways (Proxy :: Proxy ctypes) accepts value of
-        Nothing -> Wai.responseLBS HTTP.notAcceptable406 [] ""
-        Just (mtChosen, result) ->
-          let headers0 = Header.reflectHeaders headers
-              headers1 = ("Content-Type", renderHeader mtChosen) : headers0
-              headers2 = secretHeaders ++ headers1
-          in Wai.responseLBS status headers2 $ Sl.fromStrict result
+-- class Header.ReflectHeaders headers => WaiResponse headers body where
+--   waiResponse :: [Quality MediaType] -> Response headers body -> Wai.Response
+--
+-- instance Header.ReflectHeaders headers => WaiResponse headers 'Empty where
+--   waiResponse _ (EmptyResponse status secretHeaders headers) =
+--     Wai.responseLBS status (secretHeaders ++ Header.reflectHeaders headers) ""
+--
+-- instance
+--   (Header.ReflectHeaders headers, MediaType.ReflectEncoders ctypes a) =>
+--     WaiResponse headers ('Body ctypes a)
+--   where
+--     waiResponse accepts (Response status secretHeaders headers value) =
+--       case MediaType.negotiateContentAlways (sing :: Sing ctypes) accepts value of
+--         Nothing -> Wai.responseLBS HTTP.notAcceptable406 [] ""
+--         Just (mtChosen, result) ->
+--           let headers0 = Header.reflectHeaders headers
+--               headers1 = ("Content-Type", renderHeader mtChosen) : headers0
+--               headers2 = secretHeaders ++ headers1
+--           in Wai.responseLBS status headers2 $ Sl.fromStrict result

@@ -116,7 +116,7 @@ instance SingI n => HeaderEncode n RawText where
   headerEncode _ (RawText text) = Just text
 
 instance HeaderEncode 'Allow (Set Verb) where
-  headerEncode _ = displaySetOpt . Set.map standardName
+  headerEncode _ = displaySetOpt . Set.map verbName
 
 instance HeaderEncode 'Allow [Verb] where
   headerEncode = uniqueSet
@@ -140,7 +140,7 @@ instance HeaderEncode 'AccessControlAllowOrigin Text where
   headerEncode _ org = Just org
 
 instance HeaderEncode 'AccessControlAllowMethods (Set Verb) where
-  headerEncode _ = displaySetOpt . Set.map standardName
+  headerEncode _ = displaySetOpt . Set.map verbName
 
 instance HeaderEncode 'AccessControlAllowMethods [Verb] where
   headerEncode = uniqueSet

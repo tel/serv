@@ -21,7 +21,7 @@ data Rec rs where
   Cons :: ty -> Rec rs -> Rec ( name ::: ty ': rs )
 
 -- | Append a new header value on to a record
-(-:) :: Proxy name -> ty -> Rec rs -> Rec (name ::: ty ': rs)
+(-:) :: proxy name -> ty -> Rec rs -> Rec (name ::: ty ': rs)
 (-:) _ = Cons
 
 class Elem name e es where

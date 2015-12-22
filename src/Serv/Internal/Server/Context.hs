@@ -12,23 +12,24 @@
 
 module Serv.Internal.Server.Context where
 
-import qualified Data.ByteString             as S
-import qualified Data.ByteString.Lazy        as Sl
-import qualified Data.IORef                  as IORef
+import qualified Data.ByteString                    as S
+import qualified Data.ByteString.Lazy               as Sl
+import qualified Data.IORef                         as IORef
 import           Data.Monoid
-import           Data.Proxy
-import           Data.Set                    (Set)
-import qualified Data.Set                    as Set
-import           Data.Text                   (Text)
-import qualified Network.HTTP.Types          as HTTP
-import qualified Network.Wai                 as Wai
-import qualified Serv.Header.Proxies         as Hp
-import qualified Serv.Internal.Api.Analysis  as Analysis
-import qualified Serv.Internal.Cors          as Cors
-import qualified Serv.Internal.Header        as Header
+import           Data.Set                           (Set)
+import qualified Data.Set                           as Set
+import           Data.Singletons
+import           Data.Text                          (Text)
+import           GHC.TypeLits
+import qualified Network.HTTP.Types                 as HTTP
+import qualified Network.Wai                        as Wai
+-- import qualified Serv.Internal.Api.Analysis  as Analysis
+import qualified Serv.Internal.Cors                 as Cors
+import qualified Serv.Internal.Header               as Header
+import qualified Serv.Internal.Header.Serialization as HeaderS
 import           Serv.Internal.RawText
 import           Serv.Internal.Server.Config
-import qualified Serv.Internal.URI           as URI
+import qualified Serv.Internal.URI                  as URI
 
 data Context =
   Context
@@ -47,32 +48,32 @@ data Context =
 
   , body            :: S.ByteString
 
-  , corsPolicies :: [Cors.Policy]
+  , corsPolicies    :: [Cors.Policy]
   }
 
-corsHeaders
-  :: (Analysis.HeadersExpectedOf methods,
-     Analysis.HeadersReturnedBy methods,
-     Analysis.VerbsOf methods)
-  => Proxy methods -> Bool -> Context -> Maybe [HTTP.Header]
-corsHeaders proxy includeMethods ctx = do
-  let derivedExpected = Analysis.headersExpectedOf proxy
-      derivedReturned = Analysis.headersReturnedBy proxy
-      derivedVerbs = Analysis.verbsOf proxy
-      policyChain = corsPolicies ctx
-      conf = config ctx
-  RawText origin <- examineHeaderFast Hp.origin ctx
-  let corsContext =
-        Cors.Context
-        { Cors.origin = origin
-        , Cors.headersExpected =
-            Set.fromList (map fst (headersExpected ctx))
-            <> derivedExpected
-        , Cors.headersReturned = derivedReturned
-        , Cors.methodsAvailable = derivedVerbs
-        }
-  let accessSet = foldMap (\p -> p conf corsContext) policyChain
-  return (Cors.headerSet includeMethods corsContext accessSet)
+-- corsHeaders
+--   :: (Analysis.HeadersExpectedOf methods,
+--      Analysis.HeadersReturnedBy methods,
+--      Analysis.VerbsOf methods)
+--   => Proxy methods -> Bool -> Context -> Maybe [HTTP.Header]
+-- corsHeaders proxy includeMethods ctx = do
+--   let derivedExpected = Analysis.headersExpectedOf proxy
+--       derivedReturned = Analysis.headersReturnedBy proxy
+--       derivedVerbs = Analysis.verbsOf proxy
+--       policyChain = corsPolicies ctx
+--       conf = config ctx
+--   RawText origin <- examineHeaderFast Header.SOrigin ctx
+--   let corsContext =
+--         Cors.Context
+--         { Cors.origin = origin
+--         , Cors.headersExpected =
+--             Set.fromList (map fst (headersExpected ctx))
+--             <> derivedExpected
+--         , Cors.headersReturned = derivedReturned
+--         , Cors.methodsAvailable = derivedVerbs
+--         }
+--   let accessSet = foldMap (\p -> p conf corsContext) policyChain
+--   return (Cors.headerSet includeMethods corsContext accessSet)
 
 makeContext :: Config -> Wai.Request -> IO Context
 makeContext theConfig theRequest = do
@@ -131,30 +132,30 @@ pullHeaderRaw name ctx =
 
 -- | Pull a header value from the context, updating it to note that we looked
 examineHeader
-  :: Header.HeaderDecode n a
-     => Proxy n -> Context -> (Context, Either String a)
-examineHeader proxy ctx =
-  (newContext, Header.headerDecodeRaw proxy rawString)
+  :: HeaderS.HeaderDecode n a
+     => Sing n -> Context -> (Context, Either String a)
+examineHeader s ctx =
+  (newContext, HeaderS.headerDecodeRaw s rawString)
   where
-    headerName = Header.reflectName proxy
+    headerName = Header.headerName s
     (newContext, rawString) = pullHeaderRaw headerName ctx
 
 -- | Sort of like 'examineHeader' but used for when we just want the value
 -- and don't care about updating the context or worrying about
 -- distinguishing between decoding failure and outright not being there at
 -- all!
-examineHeaderFast :: Header.HeaderDecode n a => Proxy n -> Context -> Maybe a
-examineHeaderFast proxy ctx =
-  let (_, hdr) = pullHeaderRaw (Header.reflectName proxy) ctx
-  in hush (Header.headerDecodeRaw proxy hdr)
+examineHeaderFast :: HeaderS.HeaderDecode n a => Sing n -> Context -> Maybe a
+examineHeaderFast s ctx =
+  let (_, hdr) = pullHeaderRaw (Header.headerName s) ctx
+  in hush (HeaderS.headerDecodeRaw s hdr)
   where
     hush :: Either e a -> Maybe a
     hush (Left _) = Nothing
     hush (Right a) = Just a
 
 -- | Match a header value in the context, updating it to show that we looked
-expectHeader :: Header.ReflectName n => Proxy n -> Text -> Context -> (Context, Bool)
-expectHeader proxy value ctx =
+expectHeader :: forall (n :: Header.HeaderType Symbol) . Sing n -> Text -> Context -> (Context, Bool)
+expectHeader s value ctx =
   (newContext, valOk)
 
   where
@@ -164,7 +165,7 @@ expectHeader proxy value ctx =
         Just (Left _) -> False
         Just (Right (RawText observation)) -> observation == value
 
-    headerName = Header.reflectName proxy
+    headerName = Header.headerName s
     mayVal = lookup headerName headers
     newContext = ctx { headersExpected = (headerName, Just value) : headersExpected ctx }
     headers = Wai.requestHeaders req

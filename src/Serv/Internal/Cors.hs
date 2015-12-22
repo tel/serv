@@ -10,7 +10,7 @@ import           Data.Set                           (Set)
 import           Data.Text                          (Text)
 import           Data.Time
 import qualified Network.HTTP.Types                 as HTTP
-import qualified Serv.Header.Proxies                as Hp
+import qualified Serv.Internal.Header               as Header
 import qualified Serv.Internal.Header.Serialization as Hs
 import           Serv.Internal.Server.Config
 import           Serv.Internal.Verb                 (Verb)
@@ -35,13 +35,13 @@ headerSet includeMethods ctx access
   | not (originAllowed access) = []
   | otherwise =
       catMaybes
-      [ Hs.headerPair Hp.accessControlMaxAge (maxAge access)
+      [ Hs.headerPair Header.SAccessControlMaxAge (maxAge access)
       , do guard includeMethods
-           Hs.headerPair Hp.accessControlAllowMethods (methodsAllowed access)
-      , Hs.headerPair Hp.accessControlAllowOrigin (origin ctx)
-      , Hs.headerPair Hp.accessControlExposeHeaders (headersExposed access)
-      , Hs.headerPair Hp.accessControlAllowHeaders (headersAllowed access)
-      , Hs.headerPair Hp.accessControlAllowCredentials (credentialsAllowed access)
+           Hs.headerPair Header.SAccessControlAllowMethods (methodsAllowed access)
+      , Hs.headerPair Header.SAccessControlAllowOrigin (origin ctx)
+      , Hs.headerPair Header.SAccessControlExposeHeaders (headersExposed access)
+      , Hs.headerPair Header.SAccessControlAllowHeaders (headersAllowed access)
+      , Hs.headerPair Header.SAccessControlAllowCredentials (credentialsAllowed access)
       ]
 
 -- | The 'CorsContext' provides data from which we can make choices about
