@@ -11,6 +11,7 @@
 
 module Serv.Internal.SServer where
 
+import qualified Data.ByteString.Lazy as Sl
 import           Control.Monad.Trans
 import           Data.Function                      ((&))
 import           Data.Maybe                         (catMaybes)
@@ -36,9 +37,17 @@ import qualified Serv.Internal.Server.Context       as Ctx
 import qualified Serv.Internal.Server.Error         as Error
 import           Serv.Internal.Server.Monad
 import           Serv.Internal.Server.Response
+import           Serv.Internal.MediaType
 import           Serv.Internal.Server.Type
 import qualified Serv.Internal.URI                  as URI
 import           Serv.Internal.Verb
+
+addCorsHeaders :: Maybe [HTTP.Header] -> ServerValue -> ServerValue
+addCorsHeaders hdrs v =
+  case v of
+    WaiResponse resp ->
+      WaiResponse (Wai.mapResponseHeaders (maybe [] id hdrs ++) resp)
+    other -> other
 
 server
   :: ((constr :=> impl) ~ I m api, Monad m, constr)
@@ -65,18 +74,21 @@ server sApi impl =
           case mayVerb of
             Nothing -> runServer (methodNotAllowedS verbs)
             Just verb
-              | verb == OPTIONS ->
-                  -- TODO add CORS info
-                  return
-                    $ WaiResponse
-                    $ Wai.responseLBS
-                        HTTP.ok200
-                        (catMaybes [HeaderS.headerPair Header.SAllow verbs])
-                        ""
+              | verb == OPTIONS -> do
+                  corsHs <- corsHeaders sHandlers Cors.IncludeMethods
+                  let value =
+                          WaiResponse
+                          $ Wai.responseLBS
+                              HTTP.ok200
+                              (catMaybes [HeaderS.headerPair Header.SAllow verbs])
+                              ""
+                  return (addCorsHeaders corsHs value)
 
               | verb `Set.member` verbs -> do
                   -- TODO add CORS info
-                  runServer (handles verbs sHandlers impl)
+                  corsHs <- corsHeaders sHandlers Cors.Don'tIncludeMethods
+                  value <- runServer (handles verbs sHandlers impl)
+                  return (addCorsHeaders corsHs value)
 
               -- Strictly this is unnecessary but it'll let us short-circuit
               -- method-not-found error detection
@@ -130,20 +142,74 @@ augmentVerbs = augHead . augOptions where
     | otherwise = s
   augOptions = Set.insert OPTIONS
 
-handles :: Monad m => Set Verb -> Sing hs -> ImplEndpoint m hs -> Server m
+handles :: (CEndpoint hs, Monad m) => Set Verb -> Sing hs -> ImplEndpoint m hs -> Server m
 handles verbs SNil MethodNotAllowed = methodNotAllowedS verbs
 handles verbs (SCons sHandler sRest) (handler :<|> implRest) =
   handle sHandler handler
   `orElse`
   handles verbs sRest implRest
 
-handle :: forall m (h :: Handler Symbol *) . Sing h -> ImplHandler m h -> Server m
-handle sH impl =
+handle :: (CHandler h, Monad m) => Sing h -> ImplHandler m h -> Server m
+handle sH impl = Server $
   case sH of
-    _ -> undefined
+    SMethod sVerb sHdrs sBody -> do
+      mayVerb <- getVerb
+      case (mayVerb, fromSing sVerb) of
+        (Nothing, _) ->
+          runServer notFoundS
+
+        (Just HEAD, GET) -> do
+          resp <- lift impl
+          handleResponse SEmpty (deleteBody resp)
+
+        (Just req, have)
+          | req /= have ->
+              runServer notFoundS
+          | otherwise -> do
+              resp <- lift impl
+              handleResponse sBody resp
 
     -- TODO
-    -- SMethod sVerb sHdrs sBody -> _handleBody sVerb sHdrs sBody impl
+    --
+    -- SCaptureBody sCTypes sTy sH' ->
+    --   runServer (handle sH' (impl _))
+    -- SCaptureHeaders sHdrs sH' ->
+    --   runServer (handle sH' (impl _))
+    -- SCaptureQuery sQ sH' ->
+    --   runServer (handle sH' (impl _))
+
+handleResponse
+  :: (HeaderS.HeaderEncodes htypes, CBody b, Monad m)
+  => Sing b -> Response htypes b -> InContext m ServerValue
+handleResponse sing resp =
+  case (sing, resp) of
+    (SEmpty, EmptyResponse status secretHeaders headers) ->
+      return
+        $ WaiResponse
+        $ Wai.responseLBS
+            status
+            (secretHeaders ++ HeaderS.encodeHeaders headers)
+            ""
+    (SHasBody sCtypes _sTy, Response status secretHeaders headers a) -> do
+      accepts <- examineHeader Header.SAccept
+      case negotiateContentAlways sCtypes (either (const []) id accepts) a of
+        Nothing ->
+          return
+            $ WaiResponse
+            $ Wai.responseLBS HTTP.notAcceptable406 [] ""
+        Just (mt, body) ->
+          return
+            $ WaiResponse
+            $ Wai.responseLBS
+                status
+                (secretHeaders ++ HeaderS.encodeHeaders headers)
+                (Sl.fromStrict body)
+
+-- negotiateContentAlways
+--   :: AllEncoded a ctypes =>
+--      Sing ctypes -> [Media.Quality MediaType] -> a -> Maybe (MediaType, S.ByteString)
+
+    -- TODO
     -- SCaptureBody sCTypes sTy sNext ->
     --   handle sNext (impl $ _handleCapture sCTypes sTy)
     -- SCaptureHeaders sHdrs sNext ->
@@ -151,6 +217,15 @@ handle sH impl =
     -- SCaptureQuery sQuery sNext ->
     --   handle sNext (impl $ _handleCaptureQuery sQuery)
 
+-- encodeBody :: WaiResponse hdrs body => Context -> Response hdrs body -> ServerValue
+-- encodeBody ctx resp =
+--   case acceptHdr of
+--     Left _ -> WaiResponse (waiResponse [] resp)
+--     Right acceptList ->
+--       WaiResponse (waiResponse acceptList resp)
+--   where
+--     (_, acceptHdr) = Context.examineHeader Hp.accept ctx
+--
 data (:=>) (c :: Constraint) (a :: *) where
 
 type I m api = C api :=> Impl m api
@@ -206,7 +281,11 @@ type family CHandler (h :: Handler Symbol *) :: Constraint where
   CHandler (CaptureBody ctypes a h) = ((), CHandler h)
   CHandler (CaptureHeaders hspec h) = ((), CHandler h)
   CHandler (CaptureQuery qspec h) = ((), CHandler h)
-  CHandler (Method verb htypes body) = ()
+  CHandler (Method verb htypes b) = (CBody b, HeaderS.HeaderEncodes htypes)
+
+type family CBody (b :: Body *) :: Constraint where
+  CBody Empty = ()
+  CBody (HasBody ctypes a) = AllEncoded a ctypes
 
 type family CPath (p :: Path Symbol *) :: Constraint where
   CPath (Const s) = KnownSymbol s

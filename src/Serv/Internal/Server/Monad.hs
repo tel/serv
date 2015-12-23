@@ -11,15 +11,17 @@ import           Control.Monad.IO.Class
 import           Control.Monad.Reader
 import           Control.Monad.State.Strict
 import           Control.Monad.Trans
-import           Data.Text                    (Text)
-import qualified Data.Text                    as Text
-import qualified Serv.Internal.Cors           as Cors
-import qualified Serv.Internal.Server.Context as Ctx
+import           Data.Singletons
+import           Data.Text                          (Text)
+import qualified Data.Text                          as Text
+import           GHC.TypeLits
+import qualified Network.HTTP.Types                 as HTTP
+import           Serv.Internal.Api
+import qualified Serv.Internal.Cors                 as Cors
+import           Serv.Internal.Header               (HeaderType)
+import           Serv.Internal.Header.Serialization (HeaderDecode (..))
+import qualified Serv.Internal.Server.Context       as Ctx
 import           Serv.Internal.Verb
-import Serv.Internal.Header (HeaderType)
-import Serv.Internal.Header.Serialization (HeaderDecode (..))
-import Data.Singletons
-import GHC.TypeLits
 
 swap (a, b) = (b, a)
 
@@ -73,3 +75,10 @@ examineHeader s = state (swap . Ctx.examineHeader s)
 
 expectHeader :: forall m (n :: HeaderType Symbol) . Monad m => Sing n -> Text -> InContext m Bool
 expectHeader s value = state (swap . Ctx.expectHeader s value)
+
+corsHeaders
+  :: forall m (hs :: [Handler Symbol *])
+  . Monad m => Sing hs -> Cors.IncludeMethods -> InContext m (Maybe [HTTP.Header])
+corsHeaders s incl = do
+  ctx <- get
+  return (Ctx.corsHeaders s incl ctx)

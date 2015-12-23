@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
@@ -78,6 +79,8 @@ headerDecodeRaw proxy mays =
 -- Analysis
 -- ----------------------------------------------------------------------------
 
+type HeaderEncodes rs = AllC (UncurrySym1 (TyCon2 HeaderEncode)) rs
+
 -- | Encode a header type and a corresponding value into a full header pair.
 headerPair :: HeaderEncode h v => Sing h -> v -> Maybe HTTP.Header
 headerPair sing v = (headerName (headerType sing), ) <$> headerEncodeRaw sing v
@@ -86,7 +89,7 @@ firstName :: SingI name => Rec (name ::: ty ': rs) -> Sing name
 firstName _ = sing
 
 -- | Convert a record of headers into a raw bytes format
-encodeHeaders :: (AllC (UncurrySym1 (TyCon2 HeaderEncode)) rs)  => Rec rs -> [HTTP.Header]
+encodeHeaders :: HeaderEncodes rs => Rec rs -> [HTTP.Header]
 encodeHeaders rec =
   case rec of
     Nil -> []

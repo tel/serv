@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds      #-}
+{-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE GADTs          #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE TypeOperators  #-}
@@ -88,8 +89,12 @@ deleteBody r =
       EmptyResponse status secretHeaders headers
     EmptyResponse{} -> r
 
-waiResponse :: [Quality MediaType] -> Response headers body -> Wai.Response
-waiResponse = undefined
+waiResponse :: HeaderEncodes headers => [Quality MediaType] -> Response headers body -> Wai.Response
+waiResponse accepts r =
+  case r of
+    EmptyResponse status secretHeaders headers ->
+      Wai.responseLBS status (secretHeaders ++ encodeHeaders headers) ""
+
 
 -- class Header.ReflectHeaders headers => WaiResponse headers body where
 --   waiResponse :: [Quality MediaType] -> Response headers body -> Wai.Response
