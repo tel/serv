@@ -80,7 +80,7 @@ headerDecodeRaw proxy mays =
 
 -- | Encode a header type and a corresponding value into a full header pair.
 headerPair :: HeaderEncode h v => Sing h -> v -> Maybe HTTP.Header
-headerPair sing v = (headerName sing, ) <$> headerEncodeRaw sing v
+headerPair sing v = (headerName (headerType sing), ) <$> headerEncodeRaw sing v
 
 firstName :: SingI name => Rec (name ::: ty ': rs) -> Sing name
 firstName _ = sing
@@ -121,16 +121,16 @@ instance HeaderEncode 'Allow (Set Verb) where
 instance HeaderEncode 'Allow [Verb] where
   headerEncode = uniqueSet
 
-instance HeaderEncode 'AccessControlExposeHeaders (Set HTTP.HeaderName) where
-  headerEncode _ = displaySetOpt . Set.map (Text.decodeUtf8 . CI.original)
+instance HeaderEncode 'AccessControlExposeHeaders (Set (HeaderType Text)) where
+  headerEncode _ = displaySetOpt . Set.map headerName
 
-instance HeaderEncode 'AccessControlExposeHeaders [HTTP.HeaderName] where
+instance HeaderEncode 'AccessControlExposeHeaders [HeaderType Text] where
   headerEncode = uniqueSet
 
-instance HeaderEncode 'AccessControlAllowHeaders (Set HTTP.HeaderName) where
-  headerEncode _ = displaySetOpt . Set.map (Text.decodeUtf8 . CI.original)
+instance HeaderEncode 'AccessControlAllowHeaders (Set (HeaderType Text)) where
+  headerEncode _ = displaySetOpt . Set.map headerName
 
-instance HeaderEncode 'AccessControlAllowHeaders [HTTP.HeaderName] where
+instance HeaderEncode 'AccessControlAllowHeaders [HeaderType Text] where
   headerEncode = uniqueSet
 
 instance HeaderEncode 'AccessControlMaxAge NominalDiffTime where

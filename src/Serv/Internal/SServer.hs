@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds            #-}
-{-# LANGUAGE OverloadedStrings            #-}
 {-# LANGUAGE ExplicitForAll       #-}
 {-# LANGUAGE MultiWayIf           #-}
+{-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE PolyKinds            #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE TypeOperators        #-}
@@ -9,30 +9,36 @@
 
 module Serv.Internal.SServer where
 
-import Data.Maybe (catMaybes)
-import Data.Function ((&))
-import           Data.Set                     (Set)
-import qualified Data.Set                     as Set
+import           Control.Monad.Trans
+import           Data.Function                      ((&))
+import           Data.Maybe                         (catMaybes)
+import           Data.Set                           (Set)
+import qualified Data.Set                           as Set
 import           Data.Singletons
-import           Data.Singletons.Prelude      hiding ((:>), Const)
+import           Data.Singletons.Prelude            hiding ((:>), Const)
+import           Data.Singletons.TypeLits
+import           Data.String
 import           Data.Tagged
-import           Data.Text                    (Text)
-import           GHC.TypeLits
-import qualified Network.HTTP.Types           as HTTP
-import qualified Network.Wai                  as Wai
+import           Data.Text                          (Text)
+import qualified Network.HTTP.Types                 as HTTP
+import qualified Network.Wai                        as Wai
 import           Serv.Internal.Api
+import           Serv.Internal.Api.Analysis
+import qualified Serv.Internal.Header               as Header
+import qualified Serv.Internal.Header.Serialization as HeaderS
 import           Serv.Internal.Rec
-import qualified Serv.Internal.Server.Context as Ctx
-import qualified Serv.Internal.Server.Error   as Error
+import qualified Serv.Internal.Server.Context       as Ctx
+import qualified Serv.Internal.Server.Error         as Error
+import           Serv.Internal.Server.Monad
+import           Serv.Internal.Cors as Cors
+import           Serv.Internal.Server.Response
 import           Serv.Internal.Server.Type
 import           Serv.Internal.Verb
-import qualified Serv.Internal.Header as Header
-import qualified Serv.Internal.Header.Serialization as HeaderS
 
 server :: forall m (api :: Api Symbol *) . Monad m => Sing api -> Impl m api -> Server m
 server sApi impl =
   case sApi of
-    SRaw -> Server $ \_ctx -> fmap Application impl
+    SRaw -> Server $ lift (fmap Application impl)
 
     SOneOf sChoices ->
       case (sChoices, impl) of
@@ -42,31 +48,58 @@ server sApi impl =
           `orElse`
           server (SOneOf sRest) implLater
 
-    SEndpoint sAnn sHandlers -> Server $ \ctx -> do
+    SEndpoint sAnn sHandlers -> Server $ do
       let verbs = augmentVerbs (inspectVerbs sHandlers)
-      if not (Ctx.pathIsEmpty ctx)
-        then runServer notFoundS ctx
-        else case parseVerb (Ctx.method ctx) of
-          Nothing -> runServer (methodNotAllowedS verbs) ctx
-          Just method
-            | method == OPTIONS ->
-                -- TODO add CORS info
-                return
-                  $ WaiResponse
-                  $ Wai.responseLBS
-                      HTTP.ok200
-                      (catMaybes [HeaderS.headerPair Header.SAllow verbs])
-                      ""
+      isTerminal <- pathIsEmpty
+      if not isTerminal
+        then runServer notFoundS
+        else do
+          mayVerb <- getVerb
+          case mayVerb of
+            Nothing -> runServer (methodNotAllowedS verbs)
+            Just verb
+              | verb == OPTIONS ->
+                  -- TODO add CORS info
+                  return
+                    $ WaiResponse
+                    $ Wai.responseLBS
+                        HTTP.ok200
+                        (catMaybes [HeaderS.headerPair Header.SAllow verbs])
+                        ""
 
-            | Set.member method verbs -> do
-                -- TODO add CORS info
-                runServer (handles verbs sHandlers impl) ctx
+              | verb `Set.member` verbs -> do
+                  -- TODO add CORS info
+                  runServer (handles verbs sHandlers impl)
 
-            -- Strictly this is unnecessary but it'll let us short-circuit
-            -- method-not-found error detection
-            | otherwise -> runServer (methodNotAllowedS verbs) ctx
+              -- Strictly this is unnecessary but it'll let us short-circuit
+              -- method-not-found error detection
+              | otherwise -> runServer (methodNotAllowedS verbs)
 
-    sPath :%> sApi' -> _ sPath sApi'
+    sPath :%> sApi' -> Server $
+      case sPath of
+        SConst sym -> withKnownSymbol sym $ do
+          maySeg <- takeSegment
+          case maySeg of
+            Nothing -> runServer notFoundS
+            Just seg
+              | seg /= fromString (symbolVal sym) -> runServer notFoundS
+              | otherwise -> runServer (server sApi' impl)
+
+        SWildcard -> do
+          segs <- takeAllSegments
+          runServer (server sApi' (impl segs))
+
+        -- TODO
+        --
+        -- SHeaderAs sHdr sVal -> _sHeaderAs sHdr sVal
+        --
+        -- SSeg _sName _sTy -> _sSeg
+        --
+        -- SHeader sHdr _sTy -> _sHeader sHdr
+
+        SCors sTy -> do
+          addCorsPolicy (Cors.corsPolicy sTy)
+          runServer (server sApi' impl)
 
 -- | Augment the Set of allowed verbs by adding OPTIONS and, as necessary,
 -- HEAD.
@@ -76,21 +109,6 @@ augmentVerbs = augHead . augOptions where
     | Set.member GET s = Set.insert HEAD s
     | otherwise = s
   augOptions = Set.insert OPTIONS
-
-inspectVerbs :: forall (hs :: [Handler Symbol *]) . Sing hs -> Set Verb
-inspectVerbs hs =
-  case hs of
-    SNil -> Set.empty
-    SCons sHandler sRest ->
-      Set.insert (handlerVerb sHandler) (inspectVerbs sRest)
-
-handlerVerb :: forall (h :: Handler Symbol *) . Sing h -> Verb
-handlerVerb s =
-  case s of
-    SMethod sVerb _ _ -> fromSing sVerb
-    SCaptureBody _ _ sNext -> handlerVerb sNext
-    SCaptureHeaders _ sNext -> handlerVerb sNext
-    SCaptureQuery _ sNext -> handlerVerb sNext
 
 handles :: Monad m => Set Verb -> Sing hs -> ImplEndpoint m hs -> Server m
 handles verbs SNil MethodNotAllowed = methodNotAllowedS verbs
@@ -102,13 +120,16 @@ handles verbs (SCons sHandler sRest) (handler :<|> implRest) =
 handle :: forall m (h :: Handler Symbol *) . Sing h -> ImplHandler m h -> Server m
 handle sH impl =
   case sH of
-    SMethod sVerb sHdrs sBody -> _handleBody sVerb sHdrs sBody impl
-    SCaptureBody sCTypes sTy sNext ->
-      handle sNext (impl $ _handleCapture sCTypes sTy)
-    SCaptureHeaders sHdrs sNext ->
-      handle sNext (impl $ _handleCaptureHdrs sHdrs)
-    SCaptureQuery sQuery sNext ->
-      handle sNext (impl $ _handleCaptureQuery sQuery)
+    _ -> undefined
+
+    -- TODO
+    -- SMethod sVerb sHdrs sBody -> _handleBody sVerb sHdrs sBody impl
+    -- SCaptureBody sCTypes sTy sNext ->
+    --   handle sNext (impl $ _handleCapture sCTypes sTy)
+    -- SCaptureHeaders sHdrs sNext ->
+    --   handle sNext (impl $ _handleCaptureHdrs sHdrs)
+    -- SCaptureQuery sQuery sNext ->
+    --   handle sNext (impl $ _handleCaptureQuery sQuery)
 
 -- Type Families
 -- ----------------------------------------------------------------------------

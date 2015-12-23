@@ -1,8 +1,10 @@
 {-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE DeriveFunctor        #-}
 {-# LANGUAGE ExplicitForAll       #-}
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE GADTs                #-}
 {-# LANGUAGE KindSignatures       #-}
+{-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE PolyKinds            #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE StandaloneDeriving   #-}
@@ -12,13 +14,15 @@
 
 module Serv.Internal.Header where
 
+import qualified Data.CaseInsensitive as CI
 import           Data.Char
 import           Data.Proxy
 import           Data.Singletons
 import           Data.Singletons.TH
 import           Data.String
+import           Data.Text            (Text)
+import qualified Data.Text            as Text
 import           GHC.TypeLits
-import qualified Network.HTTP.Types as HTTP
 
 hyphenateName :: String -> String
 hyphenateName [] = []
@@ -445,11 +449,157 @@ singletons
   |]
 
 deriving instance Show a => Show (HeaderType a)
+deriving instance Read a => Read (HeaderType a)
 deriving instance Eq a => Eq (HeaderType a)
 deriving instance Ord a => Ord (HeaderType a)
+deriving instance Functor HeaderType
 
-headerName :: forall (h :: HeaderType Symbol) . Sing h -> HTTP.HeaderName
-headerName s =
-  case fromSing s of
-    CustomHeader name -> fromString name
+headerType :: forall s (h :: HeaderType Symbol) . IsString s => Sing h -> HeaderType s
+headerType = fmap fromString . fromSing
+
+headerName :: forall s (h :: HeaderType Symbol) . IsString s => HeaderType Text -> s
+headerName h =
+  case h of
+    CustomHeader name -> fromString (Text.unpack name)
     other -> fromString (hyphenateName (show other))
+
+standardHeaders :: [HeaderType a]
+standardHeaders =
+  [ CacheControl
+  , Connection
+  , ContentLength
+  , ContentType
+  , Date
+  , Pragma
+  , Upgrade
+  , Via
+  , Warning
+  , Accept
+  , AcceptCharset
+  , AcceptEncoding
+  , AcceptLanguage
+  , AccessControlRequestMethod
+  , AccessControlRequestHeaders
+  , Authorization
+  , Cookie
+  , Expect
+  , From
+  , Host
+  , IfMatch
+  , IfModifiedSince
+  , IfNoneMatch
+  , IfRange
+  , IfUnmodifiedSince
+  , MaxForwards
+  , Origin
+  , ProxyAuthorization
+  , Range
+  , Referer
+  , TE
+  , UserAgent
+  , XForwardedFor
+  , XForwardedHost
+  , XForwardedProto
+  , XCsrfToken
+  , AccessControlAllowOrigin
+  , AccessControlExposeHeaders
+  , AccessControlMaxAge
+  , AccessControlAllowCredentials
+  , AccessControlAllowMethods
+  , AccessControlAllowHeaders
+  , AcceptPatch
+  , AcceptRanges
+  , Age
+  , Allow
+  , ContentDisposition
+  , ContentEncoding
+  , ContentLanguage
+  , ContentLocation
+  , ContentRange
+  , ContentSecurityPolicy
+  , ETag
+  , Expires
+  , LastModified
+  , Link
+  , Location
+  , ProxyAuthenticate
+  , PublicKeyPins
+  , RetryAfter
+  , SetCookie
+  , StrictTransportSecurity
+  , Trailer
+  , TransferEncoding
+  , Vary
+  , WWWAuthenticate
+  ]
+
+nameHeader :: CI.CI Text -> HeaderType Text
+nameHeader n =
+  case n of
+    "Accept" -> Accept
+    "Accept-Charset" -> AcceptCharset
+    "Accept-Encoding" -> AcceptEncoding
+    "Accept-Language" -> AcceptLanguage
+    "Accept-Patch" -> AcceptPatch
+    "Accept-Ranges" -> AcceptRanges
+    "Access-Control-Allow-Credentials" -> AccessControlAllowCredentials
+    "Access-Control-Allow-Headers" -> AccessControlAllowHeaders
+    "Access-Control-Allow-Methods" -> AccessControlAllowMethods
+    "Access-Control-Allow-Origin" -> AccessControlAllowOrigin
+    "Access-Control-Expose-Headers" -> AccessControlExposeHeaders
+    "Access-Control-Max-Age" -> AccessControlMaxAge
+    "Access-Control-Request-Headers" -> AccessControlRequestHeaders
+    "Access-Control-Request-Method" -> AccessControlRequestMethod
+    "Age" -> Age
+    "Allow" -> Allow
+    "Authorization" -> Authorization
+    "Cache-Control" -> CacheControl
+    "Connection" -> Connection
+    "Content-Disposition" -> ContentDisposition
+    "Content-Encoding" -> ContentEncoding
+    "Content-Language" -> ContentLanguage
+    "Content-Length" -> ContentLength
+    "Content-Location" -> ContentLocation
+    "Content-Range" -> ContentRange
+    "Content-Security-Policy" -> ContentSecurityPolicy
+    "Content-Type" -> ContentType
+    "Cookie" -> Cookie
+    "Date" -> Date
+    "ETag" -> ETag
+    "Expect" -> Expect
+    "Expires" -> Expires
+    "From" -> From
+    "Host" -> Host
+    "If-Match" -> IfMatch
+    "If-Modified-Since" -> IfModifiedSince
+    "If-None-Match" -> IfNoneMatch
+    "If-Range" -> IfRange
+    "If-Unmodified-Since" -> IfUnmodifiedSince
+    "Last-Modified" -> LastModified
+    "Link" -> Link
+    "Location" -> Location
+    "Max-Forwards" -> MaxForwards
+    "Origin" -> Origin
+    "Pragma" -> Pragma
+    "Proxy-Authenticate" -> ProxyAuthenticate
+    "Proxy-Authorization" -> ProxyAuthorization
+    "Public-Key-Pins" -> PublicKeyPins
+    "Range" -> Range
+    "Referer" -> Referer
+    "Retry-After" -> RetryAfter
+    "Set-Cookie" -> SetCookie
+    "Strict-Transport-Security" -> StrictTransportSecurity
+    "TE" -> TE
+    "Trailer" -> Trailer
+    "Transfer-Encoding" -> TransferEncoding
+    "Upgrade" -> Upgrade
+    "User-Agent" -> UserAgent
+    "Vary" -> Vary
+    "Via" -> Via
+    "WWWAuthenticate" -> WWWAuthenticate
+    "Warning" -> Warning
+    "XCsrf-Token" -> XCsrfToken
+    "XForwarded-For" -> XForwardedFor
+    "XForwarded-Host" -> XForwardedHost
+    "XForwarded-Proto" -> XForwardedProto
+    other -> CustomHeader (CI.original other)

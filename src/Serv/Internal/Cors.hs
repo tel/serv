@@ -22,7 +22,7 @@ type Policy = Config -> Context -> AccessSet
 
 -- | Class describing types which describe CORS 'Policy's.
 class CorsPolicy m where
-  corsPolicy :: Proxy m -> Policy
+  corsPolicy :: proxy m -> Policy
 
 -- | The 'PermitAll' policy produces the `permitAll` `Policy`.
 data PermitAll
@@ -30,13 +30,17 @@ data PermitAll
 instance CorsPolicy PermitAll where
   corsPolicy _ = permitAll
 
-headerSet :: Bool -> Context -> AccessSet -> [HTTP.Header]
+data IncludeMethods
+  = IncludeMethods | Don'tIncludeMethods
+  deriving (Eq, Ord, Show, Read)
+
+headerSet :: IncludeMethods -> Context -> AccessSet -> [HTTP.Header]
 headerSet includeMethods ctx access
   | not (originAllowed access) = []
   | otherwise =
       catMaybes
       [ Hs.headerPair Header.SAccessControlMaxAge (maxAge access)
-      , do guard includeMethods
+      , do guard (includeMethods == IncludeMethods)
            Hs.headerPair Header.SAccessControlAllowMethods (methodsAllowed access)
       , Hs.headerPair Header.SAccessControlAllowOrigin (origin ctx)
       , Hs.headerPair Header.SAccessControlExposeHeaders (headersExposed access)
@@ -49,8 +53,8 @@ headerSet includeMethods ctx access
 data Context
   = Context
    { origin           :: Text
-   , headersExpected  :: Set HTTP.HeaderName
-   , headersReturned  :: Set HTTP.HeaderName
+   , headersExpected  :: Set (Header.HeaderType Text)
+   , headersReturned  :: Set (Header.HeaderType Text)
    , methodsAvailable :: Set Verb
    }
 
@@ -69,10 +73,10 @@ mergeContext a b =
 data AccessSet =
   AccessSet
   { originAllowed      :: Bool
-  , headersExposed     :: Set HTTP.HeaderName
+  , headersExposed     :: Set (Header.HeaderType Text)
   , credentialsAllowed :: Bool
   , methodsAllowed     :: Set Verb
-  , headersAllowed     :: Set HTTP.HeaderName
+  , headersAllowed     :: Set (Header.HeaderType Text)
   , maxAge             :: Maybe NominalDiffTime
   }
 
