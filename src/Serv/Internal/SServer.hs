@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE ConstraintKinds      #-}
 {-# LANGUAGE ExplicitForAll       #-}
 {-# LANGUAGE MultiWayIf           #-}
 {-# LANGUAGE OverloadedStrings    #-}
@@ -40,9 +41,8 @@ import qualified Serv.Internal.URI                  as URI
 import           Serv.Internal.Verb
 
 server
-  :: forall m (api :: Api Symbol *)
-  . (C api, Monad m)
-  => Sing api -> Impl m api -> Server m
+  :: ((constr :=> impl) ~ I m api, Monad m, constr)
+  => Sing api -> impl -> Server m
 server sApi impl =
   case sApi of
     SRaw -> Server $ lift (fmap Application impl)
@@ -150,6 +150,10 @@ handle sH impl =
     --   handle sNext (impl $ _handleCaptureHdrs sHdrs)
     -- SCaptureQuery sQuery sNext ->
     --   handle sNext (impl $ _handleCaptureQuery sQuery)
+
+data (:=>) (c :: Constraint) (a :: *) where
+
+type I m api = C api :=> Impl m api
 
 -- Type Families
 -- ----------------------------------------------------------------------------
