@@ -13,9 +13,7 @@
 module Serv.Internal.Api where
 
 import           Data.Singletons.TH
-import           GHC.TypeLits
 import           Serv.Internal.Header (HeaderType)
-import           Serv.Internal.Pair
 import           Serv.Internal.Verb
 
 -- | 'Handler' responses may opt to include a response body or not.

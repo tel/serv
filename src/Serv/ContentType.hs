@@ -28,7 +28,7 @@ data TextPlain
 instance HasMediaType TextPlain where
   mediaType _ = "text" // "plain"
 
-instance MimeEncode TextPlain Text where
+instance MimeEncode Text TextPlain where
   mimeEncode _ = Text.encodeUtf8
 
 data JSON
@@ -36,8 +36,8 @@ data JSON
 instance HasMediaType JSON where
   mediaType _ = "application" // "json"
 
-instance A.ToJSON a => MimeEncode JSON a where
+instance A.ToJSON a => MimeEncode a JSON where
   mimeEncode _ = Sl.toStrict . A.encode
 
-instance A.FromJSON a => MimeDecode JSON a where
+instance A.FromJSON a => MimeDecode a JSON where
   mimeDecode _ bs = A.eitherDecodeStrict bs

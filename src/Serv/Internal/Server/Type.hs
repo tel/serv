@@ -10,32 +10,20 @@
 
 module Serv.Internal.Server.Type where
 
-import qualified Data.ByteString.Char8              as S8
-import qualified Data.ByteString.Lazy               as Sl
-import           Data.Function                      ((&))
 import           Data.Maybe                         (catMaybes)
 import           Data.Maybe                         (fromMaybe)
 import           Data.Set                           (Set)
-import qualified Data.Set                           as Set
-import           Data.Singletons
 import           Data.String
-import           GHC.TypeLits
-import           Network.HTTP.Media                 (MediaType, Quality,
-                                                     renderHeader)
 import qualified Network.HTTP.Types                 as HTTP
 import qualified Network.Wai                        as Wai
-import           Serv.Internal.Api
 import qualified Serv.Internal.Header               as Header
 import qualified Serv.Internal.Header.Serialization as HeaderS
-import qualified Serv.Internal.MediaType            as MediaType
-import           Serv.Internal.Pair
-import           Serv.Internal.Rec
 import           Serv.Internal.Server.Context       (Context)
 import qualified Serv.Internal.Server.Context       as Context
 import           Serv.Internal.Server.Error         (RoutingError)
 import qualified Serv.Internal.Server.Error         as Error
+import           Serv.Internal.Server.Monad
 import qualified Serv.Internal.Verb                 as Verb
-import Serv.Internal.Server.Monad
 
 -- | A server implementation which always results in a "Not Found" error. Used to
 -- give semantics to "terminal" server @'OneOf '[]@.

@@ -16,18 +16,15 @@
 module Serv.Internal.Header.Serialization where
 
 import qualified Data.ByteString             as S
-import qualified Data.CaseInsensitive        as CI
 import           Data.Set                    (Set)
 import qualified Data.Set                    as Set
 import           Data.Singletons
 import           Data.Singletons.Prelude
-import           Data.Singletons.TypeRepStar
+import           Data.Singletons.TypeRepStar ()
 import           Data.Text                   (Text)
 import qualified Data.Text                   as Text
 import qualified Data.Text.Encoding          as Text
 import           Data.Time
-import           GHC.Exts
-import           GHC.TypeLits
 import           Network.HTTP.Media          (MediaType, Quality, parseQuality)
 import qualified Network.HTTP.Types          as HTTP
 import           Serv.Internal.Header
@@ -53,7 +50,7 @@ class SingI n => HeaderEncode (n :: HeaderType Symbol) a where
 
 -- | Handles encoding a header all the way to /raw/ bytes.
 headerEncodeRaw :: HeaderEncode n a => Sing n -> a -> Maybe S.ByteString
-headerEncodeRaw sing = fmap Text.encodeUtf8 . headerEncode sing
+headerEncodeRaw s = fmap Text.encodeUtf8 . headerEncode s
 
 
 -- | Represents mechanisms to interpret data types as header-compatible values.
@@ -79,11 +76,14 @@ headerDecodeRaw proxy mays =
 -- Analysis
 -- ----------------------------------------------------------------------------
 
+-- | Constraint ensures that a type list of pairs of 'HeaderType's and
+-- Haskell types have header semantics via 'HeaderEncode'
+
 type HeaderEncodes rs = AllC (UncurrySym1 (TyCon2 HeaderEncode)) rs
 
 -- | Encode a header type and a corresponding value into a full header pair.
 headerPair :: HeaderEncode h v => Sing h -> v -> Maybe HTTP.Header
-headerPair sing v = (headerName (headerType sing), ) <$> headerEncodeRaw sing v
+headerPair s v = (headerName (headerType s), ) <$> headerEncodeRaw s v
 
 firstName :: SingI name => Rec (name ::: ty ': rs) -> Sing name
 firstName _ = sing

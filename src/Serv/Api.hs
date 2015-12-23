@@ -2,14 +2,27 @@
 module Serv.Api (
 
     Api (..)
-  , Method (..)
-  , Body (..)
+  , Endpoint, OneOf, Raw, (:>)
+
   , Path (..)
+  , Const, HeaderAs, Seg, Header, Wildcard, Cors
+
+  , Handler (..)
+  , Method, CaptureBody, CaptureHeaders, CaptureQuery
+
+  , Body (..)
+  , HasBody, Empty
+
   , Verb (..)
-  , Pair (..)
+  , DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT
+
+  , (:::)
+
+  , Sing, SingI (..)
 
   ) where
 
-import Serv.Internal.Api
-import Serv.Internal.Verb
-import Serv.Internal.Pair
+import           Data.Singletons
+import           Serv.Internal.Api
+import           Serv.Internal.Pair
+import           Serv.Internal.Verb

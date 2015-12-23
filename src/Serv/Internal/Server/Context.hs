@@ -159,10 +159,6 @@ examineHeaderFast :: HeaderS.HeaderDecode n a => Sing n -> Context -> Maybe a
 examineHeaderFast s ctx =
   let (_, hdr) = pullHeaderRaw (Header.headerName (Header.headerType s)) ctx
   in hush (HeaderS.headerDecodeRaw s hdr)
-  where
-    hush :: Either e a -> Maybe a
-    hush (Left _) = Nothing
-    hush (Right a) = Just a
 
 -- | Match a header value in the context, updating it to show that we looked
 expectHeader :: forall (n :: Header.HeaderType Symbol) . Sing n -> Text -> Context -> (Context, Bool)

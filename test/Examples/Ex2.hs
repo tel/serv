@@ -1,61 +1,59 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PolyKinds         #-}
 {-# LANGUAGE TypeOperators     #-}
 
 -- | Here we test that a CORS response is properly handled. We assume that
 -- example.com is an acceptable Origin and that authorization IS allowed.
 module Examples.Ex2 where
 
-import           Data.Function       ((&))
-import           Data.Proxy
-import           Data.Text           (Text)
-import qualified Network.Wai         as Wai
-import qualified Network.Wai.Test    as T
-import qualified Serv.Api            as A
+import           Data.Function    ((&))
+import           Data.Text        (Text)
+import qualified Network.Wai      as Wai
+import qualified Network.Wai.Test as T
+import           Serv.Api
 import           Serv.Common
-import qualified Serv.ContentType    as Ct
-import qualified Serv.Cors           as Cors
-import qualified Serv.Header         as H
-import qualified Serv.Header.Proxies as Hp
+import qualified Serv.ContentType as Ct
+import qualified Serv.Cors        as Cors
+import qualified Serv.Header      as H
 import           Serv.Server
 import           Test.Tasty
-import qualified Test.Tasty.HUnit    as Hu
+import qualified Test.Tasty.HUnit as Hu
 
-type RawBody = 'A.Body '[ Ct.TextPlain ] Text
+type RawBody = HasBody '[ Ct.TextPlain ] Text
 
-type Api
-  = 'A.Cors Cors.PermitAll 'A.:>
-    'A.Header 'H.IfRange (Maybe RawText) 'A.:>
-    'A.Endpoint ()
-      '[ 'A.Method 'A.GET '[ 'H.XCsrfToken 'A.::: RawText ] RawBody
-       , 'A.Method 'A.DELETE '[] 'A.Empty
+type TheApi
+  = Cors Cors.PermitAll :>
+    Header H.IfRange (Maybe RawText) :>
+    Endpoint ()
+      '[ Method GET '[ H.XCsrfToken ::: RawText ] RawBody
+       , Method DELETE '[] Empty
        ]
 
-apiProxy :: Proxy Api
-apiProxy = Proxy
+apiProxy :: Sing TheApi
+apiProxy = sing
 
-impl :: Impl Api IO
-impl _ifRange = get :<|> delete :<|> noOp
+impl :: Impl IO TheApi
+impl _ifRange = get :<|> delete :<|> MethodNotAllowed
   where
     get =
       return
       $ emptyResponse ok200
-      & withHeader Hp.xCsrfToken "some-csrf-token"
+      & withHeader H.SXCsrfToken "some-csrf-token"
       & withBody "Hello"
     delete =
       return
       $ emptyResponse noContent204
 
-
-server :: Server IO
-server = handle apiProxy impl
+theServer :: Server IO
+theServer = server apiProxy impl
 
 config :: Config
 config =
   defaultConfig
 
 runTest :: T.Session a -> IO a
-runTest = flip T.runSession (makeApplication config server)
+runTest = flip T.runSession (makeApplication config theServer)
 
 test1 :: TestTree
 test1 = testGroup "Simple responses"

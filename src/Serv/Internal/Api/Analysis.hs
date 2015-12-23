@@ -11,9 +11,7 @@
 -- types.
 module Serv.Internal.Api.Analysis where
 
-import           Data.Function                ((&))
 import           Data.Monoid
-import           Data.Proxy
 import           Data.Set                     (Set)
 import qualified Data.Set                     as Set
 import           Data.Singletons
@@ -21,7 +19,6 @@ import           Data.Singletons.Prelude.List
 import           Data.Singletons.Prelude.Tuple
 import           Data.Text                    (Text)
 import           GHC.TypeLits
-import qualified Network.HTTP.Types           as HTTP
 import           Serv.Internal.Api
 import           Serv.Internal.Header         (HeaderType)
 import qualified Serv.Internal.Header         as Header
@@ -66,6 +63,7 @@ inspectHandler s =
       , headersEmitted = Set.empty
       , headersExpected = headerNames sHdrs
       }
+      <> inspectHandler sNext
 
 headerNames :: forall (hts :: [ (HeaderType Symbol, k) ]) . Sing hts -> Set (HeaderType Text)
 headerNames s =
@@ -77,5 +75,5 @@ headerNames s =
 inspectVerbs :: forall (hs :: [Handler Symbol *]) . Sing hs -> Set Verb
 inspectVerbs = verbsHandled . inspectEndpoint
 
-headersExpectedOf :: forall s (hs :: [Handler Symbol *]) . Sing hs -> Set (HeaderType Text)
+headersExpectedOf :: forall (hs :: [Handler Symbol *]) . Sing hs -> Set (HeaderType Text)
 headersExpectedOf = headersExpected . inspectEndpoint

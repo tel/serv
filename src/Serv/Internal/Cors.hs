@@ -5,7 +5,6 @@ import           Control.Applicative
 import           Control.Monad
 import           Data.Maybe                         (catMaybes)
 import           Data.Monoid
-import           Data.Proxy
 import           Data.Set                           (Set)
 import           Data.Text                          (Text)
 import           Data.Time

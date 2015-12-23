@@ -1,5 +1,5 @@
+{-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE ConstraintKinds             #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE KindSignatures        #-}
@@ -10,13 +10,12 @@
 
 module Serv.Internal.Query where
 
-import           Data.Proxy
+import           Data.Singletons.Prelude
+import           Data.Singletons.TypeLits
 import           Data.String
-import           Data.Text             (Text)
-import           Data.Text.Encoding    (encodeUtf8)
-import Data.Singletons.Prelude
-import Data.Singletons.TypeLits
-import qualified Network.HTTP.Types    as HTTP
+import           Data.Text                (Text)
+import           Data.Text.Encoding       (encodeUtf8)
+import qualified Network.HTTP.Types       as HTTP
 import           Serv.Internal.Pair
 import           Serv.Internal.RawText
 import           Serv.Internal.Rec
@@ -37,9 +36,9 @@ class KnownSymbol s => QueryDecode s a where
 type AllEncoded rs = AllC (UncurrySym1 (TyCon2 QueryEncode)) rs
 
 queryPair :: QueryEncode n a => Sing n -> a -> HTTP.QueryItem
-queryPair sing a =
-  ( fromString (withKnownSymbol sing (symbolVal sing))
-  , encodeUtf8 <$> queryEncode sing a
+queryPair s a =
+  ( fromString (withKnownSymbol s (symbolVal s))
+  , encodeUtf8 <$> queryEncode s a
   )
 
 firstName :: SingI name => Rec (name ::: ty ': rs) -> Sing name

@@ -1,42 +1,42 @@
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE TypeOperators         #-}
 
 import           Data.Function            ((&))
-import           Data.Proxy
 import           Data.Text                (Text)
 import           Network.Wai.Handler.Warp (run)
-import qualified Serv.Api                 as A
+import           Serv.Api
 import           Serv.Common
 import qualified Serv.ContentType         as Ct
 import qualified Serv.Cors                as Cors
 import qualified Serv.Header              as H
-import qualified Serv.Header.Proxies      as Hp
 import           Serv.Server
 
-type RawBody = 'A.Body '[ Ct.TextPlain ] Text
+type RawBody = HasBody '[ Ct.TextPlain ] Text
 
-type Api
-  = 'A.Cors Cors.PermitAll 'A.:>
-    'A.Endpoint ()
-      '[ 'A.Method 'A.GET '[ 'H.CacheControl 'A.::: RawText ] RawBody ]
+type TheApi
+  = Cors Cors.PermitAll :>
+    Endpoint ()
+      '[ Method GET '[ H.CacheControl ::: RawText ] RawBody ]
 
-apiProxy :: Proxy Api
-apiProxy = Proxy
 
-impl :: Impl Api IO
-impl = get :<|> noOp
+apiSing :: Sing TheApi
+apiSing = sing
+
+impl :: Impl IO TheApi
+impl = get :<|> MethodNotAllowed
   where
     get =
       return
       $ emptyResponse ok200
-      & withHeader Hp.cacheControl "foo"
+      & withHeader H.SCacheControl "foo"
       & withBody "Hello"
 
-server :: Server IO
-server = handle apiProxy impl
+theServer :: Server IO
+theServer = server apiSing impl
 
 main :: IO ()
 main =
-  run 8000 (makeApplication defaultConfig server)
+  run 8000 (makeApplication defaultConfig theServer)

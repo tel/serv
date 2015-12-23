@@ -14,7 +14,7 @@ module Serv.Internal.MediaType where
 import qualified Data.ByteString             as S
 import           Data.Singletons
 import           Data.Singletons.Prelude
-import           Data.Singletons.TypeRepStar
+import           Data.Singletons.TypeRepStar ()
 import           Network.HTTP.Media          (MediaType)
 import qualified Network.HTTP.Media          as Media
 import           Serv.Internal.TypeLevel
@@ -53,10 +53,10 @@ negotiateContent
   :: AllEncoded a ctypes
   => Sing ctypes -> [Media.Quality MediaType]
   -> a -> Maybe (MediaType, S.ByteString)
-negotiateContent sing acceptable value =
+negotiateContent s acceptable value =
   fmap
   (\(mt, encoder) -> (mt, encoder value))
-  (Media.mapQuality (map dblFst (encoders sing)) acceptable)
+  (Media.mapQuality (map dblFst (encoders s)) acceptable)
   where
     dblFst (mt, enc) = (mt, (mt, enc))
 
@@ -66,9 +66,9 @@ negotiateContent sing acceptable value =
 negotiateContentAlways
   :: AllEncoded a ctypes =>
      Sing ctypes -> [Media.Quality MediaType] -> a -> Maybe (MediaType, S.ByteString)
-negotiateContentAlways sing acceptable value =
-  case negotiateContent sing acceptable value of
-    Nothing -> case encoders sing of
+negotiateContentAlways s acceptable value =
+  case negotiateContent s acceptable value of
+    Nothing -> case encoders s of
       [] -> Nothing
       ((mt, encoder) : _) -> Just (mt, encoder value)
     Just result -> Just result
@@ -76,7 +76,7 @@ negotiateContentAlways sing acceptable value =
 tryDecode
   :: AllDecoded a ctypes =>
      Sing ctypes -> S.ByteString -> S.ByteString -> Maybe (Either String a)
-tryDecode sing mt body =
+tryDecode s mt body =
   fmap
   (\decoder -> decoder body)
-  (Media.mapContentMedia (decoders sing) mt)
+  (Media.mapContentMedia (decoders s) mt)

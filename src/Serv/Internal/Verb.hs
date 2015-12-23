@@ -8,13 +8,10 @@
 
 module Serv.Internal.Verb where
 
-import           Data.Singletons
+import qualified Data.ByteString      as S
+import qualified Data.CaseInsensitive as CI
 import           Data.Singletons.TH
 import           Data.String
-import           Data.Text
-import qualified Network.HTTP.Types as HTTP
-import qualified Data.ByteString as S
-import qualified Data.CaseInsensitive as CI
 
 -- TRACE is intentionally omitted because (a) it's very low value and (b)
 -- it opens a potential security hole via Cross-Site-Tracing. Instead of
@@ -32,6 +29,14 @@ singletons
       | PUT
         deriving ( Eq, Ord, Show, Read )
   |]
+
+type DELETE = 'DELETE
+type GET = 'GET
+type HEAD = 'HEAD
+type OPTIONS = 'OPTIONS
+type PATCH = 'PATCH
+type POST = 'POST
+type PUT = 'PUT
 
 verbName :: IsString t => Verb -> t
 verbName v =

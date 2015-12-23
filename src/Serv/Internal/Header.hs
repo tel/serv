@@ -16,7 +16,6 @@ module Serv.Internal.Header where
 
 import qualified Data.CaseInsensitive as CI
 import           Data.Char
-import           Data.Proxy
 import           Data.Singletons
 import           Data.Singletons.TH
 import           Data.String
@@ -28,6 +27,7 @@ hyphenateName :: String -> String
 hyphenateName [] = []
 hyphenateName [c] = [c]
 hyphenateName cs = pass (zip cs (tail cs)) where
+  pass [] = []
   pass [(now, later)] = [now, later]
   pass ((now, later) : rest)
     | isLower now && isUpper later = now : '-' : pass rest
@@ -454,10 +454,77 @@ deriving instance Eq a => Eq (HeaderType a)
 deriving instance Ord a => Ord (HeaderType a)
 deriving instance Functor HeaderType
 
+type Accept = 'Accept
+type AcceptCharset = 'AcceptCharset
+type AcceptEncoding = 'AcceptEncoding
+type AcceptLanguage = 'AcceptLanguage
+type AcceptPatch = 'AcceptPatch
+type AcceptRanges = 'AcceptRanges
+type AccessControlAllowCredentials = 'AccessControlAllowCredentials
+type AccessControlAllowHeaders = 'AccessControlAllowHeaders
+type AccessControlAllowMethods = 'AccessControlAllowMethods
+type AccessControlAllowOrigin = 'AccessControlAllowOrigin
+type AccessControlExposeHeaders = 'AccessControlExposeHeaders
+type AccessControlMaxAge = 'AccessControlMaxAge
+type AccessControlRequestHeaders = 'AccessControlRequestHeaders
+type AccessControlRequestMethod = 'AccessControlRequestMethod
+type Age = 'Age
+type Allow = 'Allow
+type Authorization = 'Authorization
+type CacheControl = 'CacheControl
+type Connection = 'Connection
+type ContentDisposition = 'ContentDisposition
+type ContentEncoding = 'ContentEncoding
+type ContentLanguage = 'ContentLanguage
+type ContentLength = 'ContentLength
+type ContentLocation = 'ContentLocation
+type ContentRange = 'ContentRange
+type ContentSecurityPolicy = 'ContentSecurityPolicy
+type ContentType = 'ContentType
+type Cookie = 'Cookie
+type Date = 'Date
+type ETag = 'ETag
+type Expect = 'Expect
+type Expires = 'Expires
+type From = 'From
+type Host = 'Host
+type IfMatch = 'IfMatch
+type IfModifiedSince = 'IfModifiedSince
+type IfNoneMatch = 'IfNoneMatch
+type IfRange = 'IfRange
+type IfUnmodifiedSince = 'IfUnmodifiedSince
+type LastModified = 'LastModified
+type Link = 'Link
+type Location = 'Location
+type MaxForwards = 'MaxForwards
+type Origin = 'Origin
+type Pragma = 'Pragma
+type ProxyAuthenticate = 'ProxyAuthenticate
+type ProxyAuthorization = 'ProxyAuthorization
+type PublicKeyPins = 'PublicKeyPins
+type Range = 'Range
+type Referer = 'Referer
+type RetryAfter = 'RetryAfter
+type SetCookie = 'SetCookie
+type StrictTransportSecurity = 'StrictTransportSecurity
+type TE = 'TE
+type Trailer = 'Trailer
+type TransferEncoding = 'TransferEncoding
+type Upgrade = 'Upgrade
+type UserAgent = 'UserAgent
+type Vary = 'Vary
+type Via = 'Via
+type WWWAuthenticate = 'WWWAuthenticate
+type Warning = 'Warning
+type XCsrfToken = 'XCsrfToken
+type XForwardedFor = 'XForwardedFor
+type XForwardedHost = 'XForwardedHost
+type XForwardedProto = 'XForwardedProto
+
 headerType :: forall s (h :: HeaderType Symbol) . IsString s => Sing h -> HeaderType s
 headerType = fmap fromString . fromSing
 
-headerName :: forall s (h :: HeaderType Symbol) . IsString s => HeaderType Text -> s
+headerName :: IsString s => HeaderType Text -> s
 headerName h =
   case h of
     CustomHeader name -> fromString (Text.unpack name)

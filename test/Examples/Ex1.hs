@@ -1,56 +1,55 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PolyKinds         #-}
 {-# LANGUAGE TypeOperators     #-}
 
 module Examples.Ex1 where
 
-import           Data.Function       ((&))
-import           Data.Proxy
+import           Data.Function    ((&))
 import           Data.String
-import           Data.Text           (Text)
-import qualified Network.Wai         as Wai
-import qualified Network.Wai.Test    as T
-import qualified Serv.Api            as A
+import           Data.Text        (Text)
+import qualified Network.Wai      as Wai
+import qualified Network.Wai.Test as T
+import           Serv.Api
 import           Serv.Common
-import qualified Serv.ContentType    as Ct
-import qualified Serv.Header         as H
-import qualified Serv.Header.Proxies as Hp
+import qualified Serv.ContentType as Ct
+import qualified Serv.Header      as H
 import           Serv.Server
 import           Test.Tasty
-import qualified Test.Tasty.HUnit    as Hu
+import qualified Test.Tasty.HUnit as Hu
 
-type RawBody = 'A.Body '[ Ct.TextPlain ] Text
-type JSONBody = 'A.Body '[ Ct.JSON ] [Int]
+type RawBody = HasBody '[ Ct.TextPlain ] Text
+type JSONBody = HasBody '[ Ct.JSON ] [Int]
 
-type Api
-  = 'A.Endpoint ()
-    '[ 'A.Method 'A.GET '[ 'H.CacheControl 'A.::: RawText ] RawBody
-     , 'A.Method 'A.PUT '[ 'H.CacheControl 'A.::: RawText ] JSONBody
+type TheApi
+  = Endpoint ()
+    '[ Method GET '[ 'H.CacheControl ::: RawText ] RawBody
+     , Method PUT '[ 'H.CacheControl ::: RawText ] JSONBody
      ]
 
-apiProxy :: Proxy Api
-apiProxy = Proxy
+apiSing :: Sing TheApi
+apiSing = sing
 
-impl :: Impl Api IO
-impl = get :<|> put :<|> noOp
+impl :: Impl IO TheApi
+impl = get :<|> put :<|> MethodNotAllowed
   where
     get =
       return
       $ emptyResponse ok200
-      & withHeader Hp.cacheControl "foo"
+      & withHeader H.SCacheControl "foo"
       & withBody "Hello"
     put =
       return
       $ emptyResponse ok200
-      & withHeader Hp.cacheControl "foo"
+      & withHeader H.SCacheControl "foo"
       & withBody [1, 2, 3]
 
 
-server :: Server IO
-server = handle apiProxy impl
+theServer :: Server IO
+theServer = server apiSing impl
 
 runTest :: T.Session a -> IO a
-runTest = flip T.runSession (makeApplication defaultConfig server)
+runTest = flip T.runSession (makeApplication defaultConfig theServer)
 
 test1 :: TestTree
 test1 = testGroup "Simple responses"

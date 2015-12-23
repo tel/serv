@@ -9,10 +9,7 @@ module Serv.Internal.Server.Response where
 import           Data.Function                      ((&))
 import           Data.Singletons
 import           GHC.TypeLits
-import           Network.HTTP.Media                 (MediaType, Quality,
-                                                     renderHeader)
 import qualified Network.HTTP.Types                 as HTTP
-import qualified Network.Wai                        as Wai
 import           Serv.Internal.Api
 import           Serv.Internal.Header
 import           Serv.Internal.Header.Serialization
@@ -88,30 +85,3 @@ deleteBody r =
     Response status secretHeaders headers _ ->
       EmptyResponse status secretHeaders headers
     EmptyResponse{} -> r
-
-waiResponse :: HeaderEncodes headers => [Quality MediaType] -> Response headers body -> Wai.Response
-waiResponse accepts r =
-  case r of
-    EmptyResponse status secretHeaders headers ->
-      Wai.responseLBS status (secretHeaders ++ encodeHeaders headers) ""
-
-
--- class Header.ReflectHeaders headers => WaiResponse headers body where
---   waiResponse :: [Quality MediaType] -> Response headers body -> Wai.Response
---
--- instance Header.ReflectHeaders headers => WaiResponse headers 'Empty where
---   waiResponse _ (EmptyResponse status secretHeaders headers) =
---     Wai.responseLBS status (secretHeaders ++ Header.reflectHeaders headers) ""
---
--- instance
---   (Header.ReflectHeaders headers, MediaType.ReflectEncoders ctypes a) =>
---     WaiResponse headers ('Body ctypes a)
---   where
---     waiResponse accepts (Response status secretHeaders headers value) =
---       case MediaType.negotiateContentAlways (sing :: Sing ctypes) accepts value of
---         Nothing -> Wai.responseLBS HTTP.notAcceptable406 [] ""
---         Just (mtChosen, result) ->
---           let headers0 = Header.reflectHeaders headers
---               headers1 = ("Content-Type", renderHeader mtChosen) : headers0
---               headers2 = secretHeaders ++ headers1
---           in Wai.responseLBS status headers2 $ Sl.fromStrict result

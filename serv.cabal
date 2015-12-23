@@ -16,33 +16,35 @@ library
   hs-source-dirs:      src
   exposed-modules:
 
-    Serv.Api
     Serv.Api.Annotation
+    Serv.Api
     Serv.Common
     Serv.ContentType
     Serv.Cors
     Serv.Header
-    Serv.URI
-    Serv.Internal.Api
-    Serv.Internal.Api.Annotation
     Serv.Internal.Api.Analysis
+    Serv.Internal.Api.Annotation
+    Serv.Internal.Api
     Serv.Internal.Cors
-    Serv.Internal.Header
     Serv.Internal.Header.Serialization
+    Serv.Internal.Header
     Serv.Internal.MediaType
     Serv.Internal.Pair
     Serv.Internal.Query
     Serv.Internal.RawText
     Serv.Internal.Rec
-    Serv.Internal.Server
     Serv.Internal.Server.Config
     Serv.Internal.Server.Context
     Serv.Internal.Server.Error
+    Serv.Internal.Server.Monad
+    Serv.Internal.Server.Response
     Serv.Internal.Server.Type
+    Serv.Internal.Server
+    Serv.Internal.TypeLevel
     Serv.Internal.URI
     Serv.Internal.Verb
-    Serv.Internal.TypeLevel
     Serv.Server
+    Serv.URI
 
   build-depends:       base >= 4.7 && < 5
 

@@ -10,9 +10,7 @@
 
 module Serv.Internal.Rec where
 
-import           Data.Proxy
 import           Data.Tagged
-import           GHC.Exts
 import           Serv.Internal.Pair
 
 -- | An HList collecting heterogenous types matched up to labeling information

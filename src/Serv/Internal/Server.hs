@@ -1,317 +1,293 @@
-{-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE MultiWayIf            #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE PolyKinds             #-}
-{-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE ConstraintKinds      #-}
+{-# LANGUAGE ExplicitForAll       #-}
+{-# LANGUAGE MultiWayIf           #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE PolyKinds            #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE TypeOperators        #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Serv.Internal.Server where
 
-import           Data.Function                ((&))
-import           Data.Maybe
-import           Data.Proxy
-import           Data.Set                     (Set)
-import qualified Data.Set                     as Set
+import qualified Data.ByteString.Lazy as Sl
+import           Control.Monad.Trans
+import           Data.Maybe                         (catMaybes)
+import           Data.Set                           (Set)
+import qualified Data.Set                           as Set
+import           Data.Singletons
+import           Data.Singletons.Prelude            hiding ((:>), Const)
+import           Data.Singletons.TypeLits
 import           Data.String
 import           Data.Tagged
-import           Data.Text                    (Text)
-import           GHC.TypeLits
-import qualified Network.HTTP.Types           as HTTP
-import qualified Network.Wai                  as Wai
-import qualified Serv.Header.Proxies          as Hp
+import           Data.Text                          (Text)
+import           GHC.Exts
+import qualified Network.HTTP.Types                 as HTTP
+import qualified Network.Wai                        as Wai
 import           Serv.Internal.Api
 import           Serv.Internal.Api.Analysis
-import qualified Serv.Internal.Cors           as Cors
-import qualified Serv.Internal.Header         as Header
-import           Serv.Internal.Pair
+import           Serv.Internal.Cors                 as Cors
+import qualified Serv.Internal.Header               as Header
+import qualified Serv.Internal.Header.Serialization as HeaderS
 import           Serv.Internal.Rec
-import           Serv.Internal.Server.Context (Context)
-import qualified Serv.Internal.Server.Context as Context
-import qualified Serv.Internal.Server.Error   as Error
+import           Serv.Internal.Server.Monad
+import           Serv.Internal.Server.Response
+import           Serv.Internal.MediaType
 import           Serv.Internal.Server.Type
-import qualified Serv.Internal.URI            as URI
-import qualified Serv.Internal.Verb           as Verb
+import qualified Serv.Internal.URI                  as URI
+import           Serv.Internal.Verb
 
--- Handling
+addCorsHeaders :: Maybe [HTTP.Header] -> ServerValue -> ServerValue
+addCorsHeaders hdrs v =
+  case v of
+    WaiResponse resp ->
+      WaiResponse (Wai.mapResponseHeaders (maybe [] id hdrs ++) resp)
+    other -> other
+
+server
+  :: ((constr :=> impl) ~ I m api, Monad m, constr)
+  => Sing api -> impl -> Server m
+server sApi impl =
+  case sApi of
+    SRaw -> Server $ lift (fmap Application impl)
+
+    SOneOf sChoices ->
+      case (sChoices, impl) of
+        (SNil, NotFound) -> notFoundS
+        (SCons sApi' sRest, implNow :<|> implLater) ->
+          server sApi' implNow
+          `orElse`
+          server (SOneOf sRest) implLater
+
+    SEndpoint _sAnn sHandlers -> Server $ do
+      let verbs = augmentVerbs (inspectVerbs sHandlers)
+      isTerminal <- pathIsEmpty
+      if not isTerminal
+        then runServer notFoundS
+        else do
+          mayVerb <- getVerb
+          case mayVerb of
+            Nothing -> runServer (methodNotAllowedS verbs)
+            Just verb
+              | verb == OPTIONS -> do
+                  corsHs <- corsHeaders sHandlers Cors.IncludeMethods
+                  let value =
+                          WaiResponse
+                          $ Wai.responseLBS
+                              HTTP.ok200
+                              (catMaybes [HeaderS.headerPair Header.SAllow verbs])
+                              ""
+                  return (addCorsHeaders corsHs value)
+
+              | verb `Set.member` verbs -> do
+                  -- TODO add CORS info
+                  corsHs <- corsHeaders sHandlers Cors.Don'tIncludeMethods
+                  value <- runServer (handles verbs sHandlers impl)
+                  return (addCorsHeaders corsHs value)
+
+              -- Strictly this is unnecessary but it'll let us short-circuit
+              -- method-not-found error detection
+              | otherwise -> runServer (methodNotAllowedS verbs)
+
+    sPath :%> sApi' -> Server $
+      case sPath of
+        SConst sym -> withKnownSymbol sym $ do
+          maySeg <- takeSegment
+          runServer $ case maySeg of
+            Nothing -> notFoundS
+            Just seg
+              | seg /= fromString (symbolVal sym) -> notFoundS
+              | otherwise -> server sApi' impl
+
+        SWildcard -> do
+          segs <- takeAllSegments
+          runServer (server sApi' (impl segs))
+
+        SHeaderAs sHdr sVal -> do
+          ok <- expectHeader sHdr (fromString (symbolVal sVal))
+          runServer $ if ok
+            then server sApi' impl
+            else notFoundS
+
+        SSeg _sName _sTy -> do
+          trySeg <- takeSegment
+          runServer $ case trySeg of
+            Nothing -> notFoundS
+            Just seg ->
+              case URI.uriDecode seg of
+                Left err -> badRequestS (Just err)
+                Right val -> server sApi' (impl (Tagged val))
+
+        SHeader sHdr (_sTy :: Sing a) -> do
+          tryVal <- examineHeader sHdr
+          runServer $ case tryVal of
+            Left err -> badRequestS (Just err)
+            Right val -> server sApi' (impl (val :: a))
+
+        SCors sTy -> do
+          addCorsPolicy (Cors.corsPolicy sTy)
+          runServer (server sApi' impl)
+
+-- | Augment the Set of allowed verbs by adding OPTIONS and, as necessary,
+-- HEAD.
+augmentVerbs :: Set Verb -> Set Verb
+augmentVerbs = augHead . augOptions where
+  augHead s
+    | Set.member GET s = Set.insert HEAD s
+    | otherwise = s
+  augOptions = Set.insert OPTIONS
+
+handles :: (CEndpoint hs, Monad m) => Set Verb -> Sing hs -> ImplEndpoint m hs -> Server m
+handles verbs SNil MethodNotAllowed = methodNotAllowedS verbs
+handles verbs (SCons sHandler sRest) (handler :<|> implRest) =
+  handle sHandler handler
+  `orElse`
+  handles verbs sRest implRest
+
+handle :: (CHandler h, Monad m) => Sing h -> ImplHandler m h -> Server m
+handle sH impl = Server $
+  case sH of
+    SMethod sVerb _sHdrs sBody -> do
+      mayVerb <- getVerb
+      case (mayVerb, fromSing sVerb) of
+        (Nothing, _) ->
+          runServer notFoundS
+
+        (Just HEAD, GET) -> do
+          resp <- lift impl
+          handleResponse SEmpty (deleteBody resp)
+
+        (Just req, have)
+          | req /= have ->
+              runServer notFoundS
+          | otherwise -> do
+              resp <- lift impl
+              handleResponse sBody resp
+
+    -- TODO
+
+    SCaptureBody _sCTypes _sTy _sH' ->
+      undefined -- runServer (handle sH' (impl _))
+    SCaptureHeaders _sHdrs _sH' ->
+      undefined -- runServer (handle sH' (impl _))
+    SCaptureQuery _sQ _sH' ->
+      undefined -- runServer (handle sH' (impl _))
+
+handleResponse
+  :: (HeaderS.HeaderEncodes htypes, CBody b, Monad m)
+  => Sing b -> Response htypes b -> InContext m ServerValue
+handleResponse s resp =
+  case (s, resp) of
+    (SEmpty, EmptyResponse status secretHeaders headers) ->
+      return
+        $ WaiResponse
+        $ Wai.responseLBS
+            status
+            (secretHeaders ++ HeaderS.encodeHeaders headers)
+            ""
+    (SHasBody sCtypes _sTy, Response status secretHeaders headers a) -> do
+      accepts <- examineHeader Header.SAccept
+      case negotiateContentAlways sCtypes (either (const []) id accepts) a of
+        Nothing ->
+          return
+            $ WaiResponse
+            $ Wai.responseLBS HTTP.notAcceptable406 [] ""
+        Just (_mt, body) ->
+          return
+            $ WaiResponse
+            $ Wai.responseLBS
+                status
+                (secretHeaders ++ HeaderS.encodeHeaders headers)
+                (Sl.fromStrict body)
+    _ -> bugInGHC
+
+-- negotiateContentAlways
+--   :: AllEncoded a ctypes =>
+--      Sing ctypes -> [Media.Quality MediaType] -> a -> Maybe (MediaType, S.ByteString)
+
+    -- TODO
+    -- SCaptureBody sCTypes sTy sNext ->
+    --   handle sNext (impl $ _handleCapture sCTypes sTy)
+    -- SCaptureHeaders sHdrs sNext ->
+    --   handle sNext (impl $ _handleCaptureHdrs sHdrs)
+    -- SCaptureQuery sQuery sNext ->
+    --   handle sNext (impl $ _handleCaptureQuery sQuery)
+
+-- encodeBody :: WaiResponse hdrs body => Context -> Response hdrs body -> ServerValue
+-- encodeBody ctx resp =
+--   case acceptHdr of
+--     Left _ -> WaiResponse (waiResponse [] resp)
+--     Right acceptList ->
+--       WaiResponse (waiResponse acceptList resp)
+--   where
+--     (_, acceptHdr) = Context.examineHeader Hp.accept ctx
+--
+data (:=>) (c :: Constraint) (a :: *) where
+
+type I m api = C api :=> Impl m api
+
+-- Type Families
 -- ----------------------------------------------------------------------------
 
--- | The the core type function responsible for interpreting an 'Api' into a
--- functioning 'Server'. It defines a function 'handle' defined over all forms
--- of 'Api' types which consumes a parallel type defined by the associated
--- type family 'Impl'. If @api :: Api@ then @Impl api m@ is an "implementation"
--- of the 'Api''s server logic executing in the @m@ monad. Then, applying
--- 'handle' to a value of @'Impl' api@ results in a 'Server' which can be
--- executed as a 'Wai.Application'.
+type family Impl (m :: * -> *) (a :: Api Symbol *) :: * where
+  Impl m Raw = m Wai.Application
+  Impl m (OneOf apis) = ImplOneOf m apis
+  Impl m (Endpoint ann hs) = ImplEndpoint m hs
+  Impl m (p :> a) = ImplPath m p (Impl m a)
 
-class Handling (spec :: k) where
-  type Impl spec (m :: * -> *)
-  handle :: Monad m => Proxy spec -> Impl spec m -> Server m
+type family ImplEndpoint (m :: * -> *) (hs :: [Handler Symbol *]) :: * where
+  ImplEndpoint m '[] = MethodNotAllowed
+  ImplEndpoint m (h ': hs) =
+    ImplHandler m h :<|> ImplEndpoint m hs
 
-{-
+type family ImplOneOf (m :: * -> *) (as :: [Api Symbol *]) :: * where
+  ImplOneOf m '[] = NotFound
+  ImplOneOf m (a ': as) =
+    Impl m a :<|> ImplOneOf m as
 
-TODO
-----
+type family ImplPath (m :: * -> *) (p :: Path Symbol *) (r :: *) :: * where
+  ImplPath m (Const s) next = next
+  ImplPath m (HeaderAs s v) next = next
+  ImplPath m (Seg sym a) next = Tagged sym a -> next
+  ImplPath m (Header name a) next = a -> next
+  ImplPath m Wildcard next = [Text] -> next
+  ImplPath m (Cors ty) next = next
 
-- [X] 'Method verb headers body
-- [T] 'CaptureHeaders headers api
-- [T] 'CaptureQuery query api
-- [T] 'CaptureBody ctypes value api
-- [X] 'Raw
+type family ImplHandler (m :: * -> *) (h :: Handler Symbol *) :: * where
+  ImplHandler m (CaptureBody ctypes a h) = a -> ImplHandler m h
+  ImplHandler m (CaptureHeaders hspec h) = Rec hspec -> ImplHandler m h
+  ImplHandler m (CaptureQuery qspec h) = Rec qspec -> ImplHandler m h
+  ImplHandler m (Method verb htypes body) = m (Response htypes body)
 
-- [X] '[]
-- [X] x ': xs
+type family C (a :: Api Symbol *) :: Constraint where
+  C Raw = ()
+  C (Endpoint ann hs) = CEndpoint hs
+  C (OneOf apis) = COneOf apis
+  C (p :> a) = (CPath p, C a)
 
-- [X] OneOf apis
-- [X] Endpoint apis
+type family COneOf (as :: [Api Symbol *]) :: Constraint where
+  COneOf '[] = ()
+  COneOf (a ': as) = (C a, COneOf as)
 
-- [X] Const s :> api
-- [X] HeaderAs name value :> api
-- [X] Seg name value :> api
-- [X] Header name value :> api
-- [X] Wildcard :> api
-- [X] Cors :> api
+type family CEndpoint (hs :: [Handler Symbol *]) :: Constraint where
+  CEndpoint '[] = ()
+  CEndpoint (h ': hs) = (CHandler h, CEndpoint hs)
 
--}
+type family CHandler (h :: Handler Symbol *) :: Constraint where
+  CHandler (CaptureBody ctypes a h) = ((), CHandler h)
+  CHandler (CaptureHeaders hspec h) = ((), CHandler h)
+  CHandler (CaptureQuery qspec h) = ((), CHandler h)
+  CHandler (Method verb htypes b) = (CBody b, HeaderS.HeaderEncodes htypes)
 
-encodeBody :: WaiResponse hdrs body => Context -> Response hdrs body -> ServerValue
-encodeBody ctx resp =
-  case acceptHdr of
-    Left _ -> WaiResponse (waiResponse [] resp)
-    Right acceptList ->
-      WaiResponse (waiResponse acceptList resp)
-  where
-    (_, acceptHdr) = Context.examineHeader Hp.accept ctx
+type family CBody (b :: Body *) :: Constraint where
+  CBody Empty = ()
+  CBody (HasBody ctypes a) = AllEncoded a ctypes
 
--- | 'GET' is special-cased to handle @HEAD@ semantics which cannot be
--- specified otherwise.
-instance
-  {-# OVERLAPPING  #-}
-  WaiResponse headers body =>
-  Handling ('Method 'Verb.GET headers body) where
-
-  type Impl ('Method 'Verb.GET headers body) m =
-    m (Response headers body)
-
-  handle _ mresp = Server $ \ctx -> do
-    let method = Context.method ctx
-    case method of
-      "GET" -> do
-        resp <- mresp
-        return (encodeBody ctx resp)
-      "HEAD" -> do
-        resp <- mresp
-        let newResp = deleteBody resp
-        return (WaiResponse (waiResponse [] newResp))
-      _ -> routingError Error.NotFound
-
-instance
-  (Verb.ReflectVerb verb, WaiResponse headers body) =>
-  Handling ('Method verb headers body) where
-
-  type Impl ('Method verb headers body) m =
-    m (Response headers body)
-
-  handle _ mresp = Server $ \ctx -> do
-    let method = Context.method ctx
-        expected = Verb.reflectVerb (Proxy :: Proxy verb)
-    if method /= Verb.standardName expected
-       then routingError Error.NotFound
-       else do
-         resp <- mresp
-         case snd (Context.examineHeader Hp.accept ctx) of
-           Left _err ->
-             routingError
-             (Error.BadRequest
-              (Just "could not parse acceptable content types"))
-           Right accepts ->
-             return (WaiResponse $ waiResponse accepts resp)
-
-instance Handling method =>
-  Handling ('CaptureHeaders (headers :: [Pair Header.HeaderName *]) method) where
-  type Impl ('CaptureHeaders headers method) m =
-    Rec headers -> Impl method m
-  handle = undefined -- TODO
-
-instance Handling method =>
-  Handling ('CaptureQuery (query :: [Pair Symbol *]) method) where
-  type Impl ('CaptureQuery query method) m =
-    Rec query -> Impl method m
-  handle = undefined -- TODO
-
-instance Handling method =>
-  Handling ('CaptureBody ctypes (value :: *) method) where
-  type Impl ('CaptureBody ctypes value method) m =
-    value -> Impl method m
-  handle = undefined -- TODO
-
-instance Handling 'Raw where
-  type Impl 'Raw m = m Wai.Application
-  handle _ impl = Server $ \_ -> do
-    app <- impl
-    return (Application app)
-
-instance
-  (VerbsOf methods,
-   HeadersReturnedBy methods,
-   HeadersExpectedOf methods,
-   Handling methods)
-  => Handling ('Endpoint ann (methods :: [Method *]))
-  where
-    type Impl ('Endpoint ann methods) m = Impl methods m
-    handle Proxy impl = Server $ \ctx -> do
-      let pathIsEmpty = Context.pathIsEmpty ctx
-      if not pathIsEmpty
-        then routingError Error.NotFound
-        else do
-          let method = Context.method ctx
-              methodsProxy = Proxy :: Proxy methods
-          if | method == HTTP.methodOptions ->
-                 return $ defaultOptionsResponse verbs
-                        & addHeaders (
-                            fromMaybe [] $ Context.corsHeaders methodsProxy True ctx
-                          )
-
-             | verbMatch verbs method -> do
-                 value <- runServer (handle (Proxy :: Proxy methods) impl) ctx
-                 return $ value
-                        & addHeaders (
-                            fromMaybe [] $ Context.corsHeaders methodsProxy False ctx
-                          )
-
-             | otherwise ->
-               -- TODO: Probably a double-check; trying the method implementations
-               -- ought to fail this way, too
-               routingError (Error.MethodNotAllowed (Set.toList verbs))
-      where
-        verbs = verbsOf (Proxy :: Proxy methods)
-        addHeaders hdrs v =
-          case v of
-            WaiResponse resp ->
-              WaiResponse (Wai.mapResponseHeaders (hdrs ++) resp)
-            other -> other
-
-
--- | Is the request method in the set of verbs?
-verbMatch :: Set Verb.Verb -> HTTP.Method -> Bool
-verbMatch verbs methodname =
-    case methodname of
-      -- Special-casing the GET/HEAD overlap
-      "HEAD" -> verbMatch verbs "GET"
-      _ -> methodname `Set.member` Set.map Verb.standardName verbs
-
-defaultOptionsResponse :: Set Verb.Verb -> ServerValue
-defaultOptionsResponse verbs =
-  -- TODO: Add CORS information
-  WaiResponse
-  $ Wai.responseLBS
-    HTTP.ok200
-    (catMaybes [Header.headerPair Hp.allow orderedVerbs])
-    ""
-  where
-    allVerbs =
-      if Set.member Verb.GET verbs
-        then verbs & Set.insert Verb.HEAD
-                   & Set.insert Verb.OPTIONS
-        else verbs & Set.insert Verb.OPTIONS
-    orderedVerbs = Set.toList allVerbs
-
-instance Handling '[] where
-  type Impl '[] m = m NotHere
-  handle _ m = Server $ \_ -> do
-    NotHere <- m
-    routingError Error.NotFound
-
-instance (Handling x, Handling xs) => Handling (x ': xs) where
-  type Impl (x ': xs) m = Impl x m :<|> Impl xs m
-  handle _ (l :<|> r) = lServer `orElse` rServer where
-    lServer = handle (Proxy :: Proxy x) l
-    rServer = handle (Proxy :: Proxy xs) r
-
-instance Handling apis => Handling ('OneOf apis) where
-  type Impl ('OneOf apis) m = Impl apis m
-  handle _ = handle (Proxy :: Proxy apis)
-
-instance (KnownSymbol s, Handling api) => Handling ('Const s ':> api) where
-  type Impl ('Const s ':> api) m = Impl api m
-  handle _ impl = Server $ \ctx -> do
-    let (ctx', m) = Context.takeSegment ctx
-        matchName = fromString (symbolVal (Proxy :: Proxy s))
-        next = handle (Proxy :: Proxy api) impl
-    case m of
-      Nothing -> routingError Error.NotFound
-      Just seg
-        | seg /= matchName -> routingError Error.NotFound
-        | otherwise -> runServer next ctx'
-
-instance Handling api => Handling ('Wildcard ':> api) where
-  type Impl ('Wildcard ':> api) m = [Text] -> Impl api m
-  handle _ f = Server $ \ctx -> do
-    let (ctx', segs) = Context.takeAllSegments ctx
-    runServer (handle (Proxy :: Proxy api) (f segs)) ctx'
-
-instance (Header.ReflectName n, KnownSymbol v, Handling api) => Handling ('HeaderAs n v ':> api) where
-  type Impl ('HeaderAs s v ':> api) m = Impl api m
-  handle _ impl = Server $ \ctx -> do
-    let headerProxy = Proxy :: Proxy n
-        headerValue = fromString (symbolVal (Proxy :: Proxy v))
-        next = handle (Proxy :: Proxy api) impl
-        (ctx', ok) = Context.expectHeader headerProxy headerValue ctx
-    if ok
-      then runServer next ctx'
-      else routingError Error.NotFound
-
-instance
-  (Header.HeaderDecode n v, Handling api) => Handling ('Header n v ':> api)
-  where
-    type Impl ('Header n v ':> api) m = v -> Impl api m
-    handle _ impl = Server $ \ctx -> do
-      let headerProxy = Proxy :: Proxy n
-          (ctx', m) = Context.examineHeader headerProxy ctx
-          next = handle (Proxy :: Proxy api) . impl
-      case m of
-        Left parseError -> routingError (Error.BadRequest (Just parseError))
-        Right value -> runServer (next value) ctx'
-
-instance (URI.URIDecode v, Handling api) => Handling ('Seg n v ':> api) where
-  type Impl ('Seg n v ':> api) m = Tagged n v -> Impl api m
-  handle _ impl = Server $ \ctx -> do
-    let (ctx', m) = Context.takeSegment ctx
-        next = handle (Proxy :: Proxy api) . impl
-    case m of
-      Nothing -> routingError Error.NotFound
-      Just seg -> case URI.uriDecode seg of
-        Left _err -> routingError (Error.BadRequest Nothing)
-        Right val -> runServer (next $ Tagged val) ctx'
-
-instance (Handling api, Cors.CorsPolicy p) => Handling ('Cors p ':> api) where
-  type Impl ('Cors p ':> api) m = Impl api m
-  handle _ impl = Server $ \ctx ->
-    let newCtx = ctx { Context.corsPolicies =
-                         Cors.corsPolicy (Proxy :: Proxy p)
-                         : Context.corsPolicies ctx }
-    in runServer (handle (Proxy :: Proxy api) impl) newCtx
-
--- instance (ContentMatching cts ty, Handling api) => Handling ('CaptureBody cts ty ':> api) where
-
---   type Impl ('CaptureBody cts ty ':> api) m =
---     ty -> Impl api m
-
---   handle Proxy impl = Server $ do
---     (newContext, maybeHeader) <- asks $ Context.pullHeaderRaw HTTP.hContentType
---     let header = fromMaybe "application/octet-stream" maybeHeader
---     reqBody <- asks Context.body
---     case Media.mapContentMedia matches header of
---       Nothing -> throwError Error.UnsupportedMediaType
---       Just decoder -> case decoder reqBody of
---         Left err -> throwError $ Error.BadRequest (Just err)
---         Right val -> local (const newContext) (continue val)
-
---     where
---       matches = contentMatch (Proxy :: Proxy cts)
---       continue = runServer . handle (Proxy :: Proxy api) . impl
+type family CPath (p :: Path Symbol *) :: Constraint where
+  CPath (Const s) = KnownSymbol s
+  CPath (HeaderAs s v) = (SingI s, KnownSymbol v)
+  CPath (Seg sym a) = (KnownSymbol sym, URI.URIDecode a)
+  CPath (Header name a) = HeaderS.HeaderDecode name a
+  CPath Wildcard = ()
+  CPath (Cors ty) = Cors.CorsPolicy ty

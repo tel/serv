@@ -10,10 +10,8 @@ module Serv.Internal.Server.Monad where
 import           Control.Monad.IO.Class
 import           Control.Monad.Reader
 import           Control.Monad.State.Strict
-import           Control.Monad.Trans
 import           Data.Singletons
 import           Data.Text                          (Text)
-import qualified Data.Text                          as Text
 import           GHC.TypeLits
 import qualified Network.HTTP.Types                 as HTTP
 import           Serv.Internal.Api
@@ -23,6 +21,7 @@ import           Serv.Internal.Header.Serialization (HeaderDecode (..))
 import qualified Serv.Internal.Server.Context       as Ctx
 import           Serv.Internal.Verb
 
+swap :: (a, b) -> (b, a)
 swap (a, b) = (b, a)
 
 newtype InContext m a
@@ -39,7 +38,7 @@ runInContext = runStateT . _runInContext
 instance Monad m => MonadReader Ctx.Context (InContext m) where
   ask = get
   local f m = do
-    (ctx, a) <- fork (modify f >> m)
+    (_ctx, a) <- fork (modify f >> m)
     return a
 
 mapInContext :: (forall x . m x -> n x) -> InContext m a -> InContext n a
