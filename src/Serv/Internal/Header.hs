@@ -15,7 +15,6 @@
 module Serv.Internal.Header where
 
 import qualified Data.CaseInsensitive as CI
-import           Data.Char
 import           Data.Singletons
 import           Data.Singletons.TH
 import           Data.String
