@@ -524,12 +524,6 @@ type XForwardedProto = 'XForwardedProto
 headerType :: forall s (h :: HeaderType Symbol) . IsString s => Sing h -> HeaderType s
 headerType = fmap fromString . fromSing
 
-headerName :: IsString s => HeaderType Text -> s
-headerName h =
-  case h of
-    CustomHeader name -> fromString (Text.unpack name)
-    other -> fromString (hyphenateName (show other))
-
 standardHeaders :: [HeaderType a]
 standardHeaders =
   [ CacheControl
@@ -600,6 +594,77 @@ standardHeaders =
   , WWWAuthenticate
   ]
 
+headerName :: IsString s => HeaderType Text -> s
+headerName h =
+  case h of
+    CustomHeader name -> fromString (Text.unpack name)
+    Accept -> "Accept"
+    AcceptCharset -> "Accept-Charset"
+    AcceptEncoding -> "Accept-Encoding"
+    AcceptLanguage -> "Accept-Language"
+    AcceptPatch -> "Accept-Patch"
+    AcceptRanges -> "Accept-Ranges"
+    AccessControlAllowCredentials -> "Access-Control-Allow-Credentials"
+    AccessControlAllowHeaders -> "Access-Control-Allow-Headers"
+    AccessControlAllowMethods -> "Access-Control-Allow-Methods"
+    AccessControlAllowOrigin -> "Access-Control-Allow-Origin"
+    AccessControlExposeHeaders -> "Access-Control-Expose-Headers"
+    AccessControlMaxAge -> "Access-Control-Max-Age"
+    AccessControlRequestHeaders -> "Access-Control-Request-Headers"
+    AccessControlRequestMethod -> "Access-Control-Request-Method"
+    Age -> "Age"
+    Allow -> "Allow"
+    Authorization -> "Authorization"
+    CacheControl -> "Cache-Control"
+    Connection -> "Connection"
+    ContentDisposition -> "Content-Disposition"
+    ContentEncoding -> "Content-Encoding"
+    ContentLanguage -> "Content-Language"
+    ContentLength -> "Content-Length"
+    ContentLocation -> "Content-Location"
+    ContentRange -> "Content-Range"
+    ContentSecurityPolicy -> "Content-Security-Policy"
+    ContentType -> "Content-Type"
+    Cookie -> "Cookie"
+    Date -> "Date"
+    ETag -> "ETag"
+    Expect -> "Expect"
+    Expires -> "Expires"
+    From -> "From"
+    Host -> "Host"
+    IfMatch -> "If-Match"
+    IfModifiedSince -> "If-Modified-Since"
+    IfNoneMatch -> "If-None-Match"
+    IfRange -> "If-Range"
+    IfUnmodifiedSince -> "If-Unmodified-Since"
+    LastModified -> "Last-Modified"
+    Link -> "Link"
+    Location -> "Location"
+    MaxForwards -> "Max-Forwards"
+    Origin -> "Origin"
+    Pragma -> "Pragma"
+    ProxyAuthenticate -> "Proxy-Authenticate"
+    ProxyAuthorization -> "Proxy-Authorization"
+    PublicKeyPins -> "Public-Key-Pins"
+    Range -> "Range"
+    Referer -> "Referer"
+    RetryAfter -> "Retry-After"
+    SetCookie -> "Set-Cookie"
+    StrictTransportSecurity -> "Strict-Transport-Security"
+    TE -> "TE"
+    Trailer -> "Trailer"
+    TransferEncoding -> "Transfer-Encoding"
+    Upgrade -> "Upgrade"
+    UserAgent -> "User-Agent"
+    Vary -> "Vary"
+    Via -> "Via"
+    WWWAuthenticate -> "WWW-Authenticate"
+    Warning -> "Warning"
+    XCsrfToken -> "X-Csrf-Token"
+    XForwardedFor -> "X-Forwarded-For"
+    XForwardedHost -> "X-Forwarded-Host"
+    XForwardedProto -> "X-Forwarded-Proto"
+
 nameHeader :: CI.CI Text -> HeaderType Text
 nameHeader n =
   case n of
@@ -663,10 +728,10 @@ nameHeader n =
     "User-Agent" -> UserAgent
     "Vary" -> Vary
     "Via" -> Via
-    "WWWAuthenticate" -> WWWAuthenticate
+    "WWW-Authenticate" -> WWWAuthenticate
     "Warning" -> Warning
-    "XCsrf-Token" -> XCsrfToken
-    "XForwarded-For" -> XForwardedFor
-    "XForwarded-Host" -> XForwardedHost
-    "XForwarded-Proto" -> XForwardedProto
+    "X-Csrf-Token" -> XCsrfToken
+    "X-Forwarded-For" -> XForwardedFor
+    "X-Forwarded-Host" -> XForwardedHost
+    "X-Forwarded-Proto" -> XForwardedProto
     other -> CustomHeader (CI.original other)
