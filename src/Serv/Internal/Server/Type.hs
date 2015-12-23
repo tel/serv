@@ -110,6 +110,9 @@ notFoundS = Server $ routingError Error.NotFound
 methodNotAllowedS :: Monad m => Set Verb.Verb -> Server m
 methodNotAllowedS vs = Server $ routingError (Error.MethodNotAllowed vs)
 
+badRequestS :: Monad m => Maybe String -> Server m
+badRequestS merr = Server $ routingError (Error.BadRequest merr)
+
 routingError :: Monad m => RoutingError -> m ServerValue
 routingError err = return (RoutingError err)
 
@@ -121,7 +124,7 @@ runServerWai
   -> (Wai.Response -> IO Wai.ResponseReceived)
   -> (Server IO -> IO Wai.ResponseReceived)
 runServerWai context respond server = do
-  val <- runInContext (runServer server) context
+  (val, _newCtx) <- runInContext (runServer server) context
   case val of
     RoutingError err -> respond $ case err of
       Error.NotFound ->

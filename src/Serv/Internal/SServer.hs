@@ -3,6 +3,7 @@
 {-# LANGUAGE MultiWayIf           #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE PolyKinds            #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE TypeOperators        #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -20,22 +21,28 @@ import           Data.Singletons.TypeLits
 import           Data.String
 import           Data.Tagged
 import           Data.Text                          (Text)
+import           GHC.Exts
 import qualified Network.HTTP.Types                 as HTTP
 import qualified Network.Wai                        as Wai
 import           Serv.Internal.Api
 import           Serv.Internal.Api.Analysis
+import           Serv.Internal.Cors                 as Cors
 import qualified Serv.Internal.Header               as Header
 import qualified Serv.Internal.Header.Serialization as HeaderS
+import           Serv.Internal.RawText
 import           Serv.Internal.Rec
 import qualified Serv.Internal.Server.Context       as Ctx
 import qualified Serv.Internal.Server.Error         as Error
 import           Serv.Internal.Server.Monad
-import           Serv.Internal.Cors as Cors
 import           Serv.Internal.Server.Response
 import           Serv.Internal.Server.Type
+import qualified Serv.Internal.URI                  as URI
 import           Serv.Internal.Verb
 
-server :: forall m (api :: Api Symbol *) . Monad m => Sing api -> Impl m api -> Server m
+server
+  :: forall m (api :: Api Symbol *)
+  . (C api, Monad m)
+  => Sing api -> Impl m api -> Server m
 server sApi impl =
   case sApi of
     SRaw -> Server $ lift (fmap Application impl)
@@ -79,23 +86,36 @@ server sApi impl =
       case sPath of
         SConst sym -> withKnownSymbol sym $ do
           maySeg <- takeSegment
-          case maySeg of
-            Nothing -> runServer notFoundS
+          runServer $ case maySeg of
+            Nothing -> notFoundS
             Just seg
-              | seg /= fromString (symbolVal sym) -> runServer notFoundS
-              | otherwise -> runServer (server sApi' impl)
+              | seg /= fromString (symbolVal sym) -> notFoundS
+              | otherwise -> server sApi' impl
 
         SWildcard -> do
           segs <- takeAllSegments
           runServer (server sApi' (impl segs))
 
-        -- TODO
-        --
-        -- SHeaderAs sHdr sVal -> _sHeaderAs sHdr sVal
-        --
-        -- SSeg _sName _sTy -> _sSeg
-        --
-        -- SHeader sHdr _sTy -> _sHeader sHdr
+        SHeaderAs sHdr sVal -> do
+          ok <- expectHeader sHdr (fromString (symbolVal sVal))
+          runServer $ if ok
+            then server sApi' impl
+            else notFoundS
+
+        SSeg _sName _sTy -> do
+          trySeg <- takeSegment
+          runServer $ case trySeg of
+            Nothing -> notFoundS
+            Just seg ->
+              case URI.uriDecode seg of
+                Left err -> badRequestS (Just err)
+                Right val -> server sApi' (impl (Tagged val))
+
+        SHeader sHdr (_sTy :: Sing a) -> do
+          tryVal <- examineHeader sHdr
+          runServer $ case tryVal of
+            Left err -> badRequestS (Just err)
+            Right val -> server sApi' (impl (val :: a))
 
         SCors sTy -> do
           addCorsPolicy (Cors.corsPolicy sTy)
@@ -136,12 +156,9 @@ handle sH impl =
 
 type family Impl (m :: * -> *) (a :: Api Symbol *) :: * where
   Impl m Raw = m Wai.Application
-  Impl m (p :> a) = ImplPath m p a
+  Impl m (OneOf apis) = ImplOneOf m apis
   Impl m (Endpoint ann hs) = ImplEndpoint m hs
-
-  Impl m (OneOf '[]) = NotFound
-  Impl m (OneOf (a ': as)) =
-    Impl m a :<|> Impl m (OneOf as)
+  Impl m (p :> a) = ImplPath m p (Impl m a)
 
 type family ImplEndpoint (m :: * -> *) (hs :: [Handler Symbol *]) :: * where
   ImplEndpoint m '[] = MethodNotAllowed
@@ -153,18 +170,44 @@ type family ImplOneOf (m :: * -> *) (as :: [Api Symbol *]) :: * where
   ImplOneOf m (a ': as) =
     Impl m a :<|> ImplOneOf m as
 
-type family ImplPath (m :: * -> *)
-                     (p :: Path Symbol *)
-                     (a :: Api Symbol *) :: * where
-  ImplPath m (Const s) next = Impl m next
-  ImplPath m (HeaderAs s v) next = Impl m next
-  ImplPath m (Seg sym a) next = Tagged sym a -> Impl m next
-  ImplPath m (Header name a) next = a -> Impl m next
-  ImplPath m Wildcard next = [Text] -> Impl m next
-  ImplPath m (Cors ty) next = Impl m next
+type family ImplPath (m :: * -> *) (p :: Path Symbol *) (r :: *) :: * where
+  ImplPath m (Const s) next = next
+  ImplPath m (HeaderAs s v) next = next
+  ImplPath m (Seg sym a) next = Tagged sym a -> next
+  ImplPath m (Header name a) next = a -> next
+  ImplPath m Wildcard next = [Text] -> next
+  ImplPath m (Cors ty) next = next
 
 type family ImplHandler (m :: * -> *) (h :: Handler Symbol *) :: * where
   ImplHandler m (CaptureBody ctypes a h) = a -> ImplHandler m h
   ImplHandler m (CaptureHeaders hspec h) = Rec hspec -> ImplHandler m h
   ImplHandler m (CaptureQuery qspec h) = Rec qspec -> ImplHandler m h
   ImplHandler m (Method verb htypes body) = m (Response htypes body)
+
+type family C (a :: Api Symbol *) :: Constraint where
+  C Raw = ()
+  C (Endpoint ann hs) = CEndpoint hs
+  C (OneOf apis) = COneOf apis
+  C (p :> a) = (CPath p, C a)
+
+type family COneOf (as :: [Api Symbol *]) :: Constraint where
+  COneOf '[] = ()
+  COneOf (a ': as) = (C a, COneOf as)
+
+type family CEndpoint (hs :: [Handler Symbol *]) :: Constraint where
+  CEndpoint '[] = ()
+  CEndpoint (h ': hs) = (CHandler h, CEndpoint hs)
+
+type family CHandler (h :: Handler Symbol *) :: Constraint where
+  CHandler (CaptureBody ctypes a h) = ((), CHandler h)
+  CHandler (CaptureHeaders hspec h) = ((), CHandler h)
+  CHandler (CaptureQuery qspec h) = ((), CHandler h)
+  CHandler (Method verb htypes body) = ()
+
+type family CPath (p :: Path Symbol *) :: Constraint where
+  CPath (Const s) = KnownSymbol s
+  CPath (HeaderAs s v) = (SingI s, KnownSymbol v)
+  CPath (Seg sym a) = (KnownSymbol sym, URI.URIDecode a)
+  CPath (Header name a) = HeaderS.HeaderDecode name a
+  CPath Wildcard = ()
+  CPath (Cors ty) = Cors.CorsPolicy ty
