@@ -23,16 +23,6 @@ import           Data.Text            (Text)
 import qualified Data.Text            as Text
 import           GHC.TypeLits
 
-hyphenateName :: String -> String
-hyphenateName [] = []
-hyphenateName [c] = [c]
-hyphenateName cs = pass (zip cs (tail cs)) where
-  pass [] = []
-  pass [(now, later)] = [now, later]
-  pass ((now, later) : rest)
-    | isLower now && isUpper later = now : '-' : pass rest
-    | otherwise = now : pass rest
-
 -- | The variant (name and meaning) of a HTTP header.
 --
 -- An incomplete listing of most permanant headers, a selection of provisional
