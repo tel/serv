@@ -12,10 +12,11 @@
 
 module Serv.Internal.Server.Context where
 
-import Data.Maybe (mapMaybe)
 import qualified Data.ByteString                    as S
 import qualified Data.ByteString.Lazy               as Sl
+import qualified Data.CaseInsensitive               as CI
 import qualified Data.IORef                         as IORef
+import           Data.Maybe                         (mapMaybe)
 import           Data.Monoid
 import           Data.Set                           (Set)
 import qualified Data.Set                           as Set
@@ -33,7 +34,7 @@ import qualified Serv.Internal.Header.Serialization as HeaderS
 import           Serv.Internal.RawText
 import           Serv.Internal.Server.Config
 import qualified Serv.Internal.URI                  as URI
-import qualified Data.CaseInsensitive as CI
+import           Serv.Internal.Verb
 
 data Context =
   Context
@@ -76,10 +77,19 @@ corsHeaders s includeMethods ctx = do
         , Cors.headersReturned =
             Analysis.headersEmitted ana
         , Cors.methodsAvailable =
-            Analysis.verbsHandled ana
+            augmentVerbs (Analysis.verbsHandled ana)
         }
   let accessSet = foldMap (\p -> p conf corsContext) policyChain
   return (Cors.headerSet includeMethods corsContext accessSet)
+
+-- | Augment the Set of allowed verbs by adding OPTIONS and, as necessary,
+-- HEAD.
+augmentVerbs :: Set Verb -> Set Verb
+augmentVerbs = augHead . augOptions where
+  augHead s
+    | Set.member GET s = Set.insert HEAD s
+    | otherwise = s
+  augOptions = Set.insert OPTIONS
 
 makeContext :: Config -> Wai.Request -> IO Context
 makeContext theConfig theRequest = do
