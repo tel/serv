@@ -22,3 +22,4 @@ install:
 
 script:
   - stack --no-terminal --skip-ghc-check test --fast --pedantic
+  - ./travis/long stack --no-terminal --skip-ghc-check haddock
