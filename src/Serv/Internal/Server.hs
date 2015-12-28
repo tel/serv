@@ -93,7 +93,6 @@ server sApi impl =
                   return (addCorsHeaders corsHs value)
 
               | verb `Set.member` verbs -> do
-                  -- TODO add CORS info
                   corsHs <- corsHeaders sHandlers Cors.Don'tIncludeMethods
                   value <- runServer (handles verbs sHandlers impl)
                   return (addCorsHeaders corsHs value)
