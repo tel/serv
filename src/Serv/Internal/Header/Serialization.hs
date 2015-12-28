@@ -1,5 +1,5 @@
-{-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
@@ -26,6 +26,7 @@ import qualified Data.Text                   as Text
 import qualified Data.Text.Encoding          as Text
 import           Data.Time
 import           Network.HTTP.Media          (MediaType, Quality, parseQuality)
+import qualified Network.HTTP.Media          as Media
 import qualified Network.HTTP.Types          as HTTP
 import           Serv.Internal.Header
 import           Serv.Internal.Pair
@@ -150,6 +151,12 @@ instance HeaderEncode 'AccessControlAllowMethods [Verb] where
 
 instance HeaderEncode 'AccessControlAllowCredentials Bool where
   headerEncode = trueFalse
+
+instance HeaderEncode 'ContentType MediaType where
+  headerEncode _ mt =
+    case Text.decodeUtf8' (Media.renderHeader mt) of
+      Left _err -> Nothing
+      Right txt -> Just txt
 
 instance {-# OVERLAPPABLE #-} SingI n => HeaderEncode n Bool where
   headerEncode = trueFalse

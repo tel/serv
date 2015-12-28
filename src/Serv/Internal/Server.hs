@@ -165,7 +165,7 @@ handle sH impl = Server $
               resp <- lift impl
               handleResponse sBody resp
 
-    -- TODO
+    -- TODO: These...
 
     SCaptureBody _sCTypes _sTy _sH' ->
       undefined -- runServer (handle sH' (impl _))
@@ -193,12 +193,17 @@ handleResponse s resp =
           return
             $ WaiResponse
             $ Wai.responseLBS HTTP.notAcceptable406 [] ""
-        Just (_mt, body) ->
+        Just (mt, body) -> do
+          let newHeaders =
+                catMaybes [ HeaderS.headerPair Header.SContentType mt ]
           return
             $ WaiResponse
             $ Wai.responseLBS
                 status
-                (secretHeaders ++ HeaderS.encodeHeaders headers)
+                ( newHeaders
+                  ++ secretHeaders
+                  ++ HeaderS.encodeHeaders headers
+                )
                 (Sl.fromStrict body)
     _ -> bugInGHC
 
