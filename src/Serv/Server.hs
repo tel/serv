@@ -13,17 +13,17 @@ module Serv.Server (
     , server
 
     , Impl
-    , ImplEndpoint
-    , ImplOneOf
-    , ImplPath
-    , ImplHandler
+    , Impl_Endpoint
+    , Impl_OneOf
+    , Impl_Path
+    , Impl_Handler
 
-    , C
-    , COneOf
-    , CEndpoint
-    , CHandler
-    , CBody
-    , CPath
+    , Constrain
+    , Constrain_OneOf
+    , Constrain_Endpoint
+    , Constrain_Handler
+    , Constrain_Body
+    , Constrain_Path
 
       -- For implementation
     , (:<|>) (..), NotFound (..), MethodNotAllowed (..)

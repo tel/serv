@@ -45,9 +45,28 @@ addCorsHeaders hdrs v =
       WaiResponse (Wai.mapResponseHeaders (maybe [] id hdrs ++) resp)
     other -> other
 
-server
-  :: ((constr :=> impl) ~ I m api, Monad m, constr)
-  => Sing api -> impl -> Server m
+-- | Construct a 'Server' value for a given 'Api' type by providing an
+-- 'Impl' describing the semantics and server behaviors for that 'Api'.
+--
+-- The type families 'Impl' and 'Constrain' are important to understand.
+-- 'Constrain' describes what typeclasses must be instantiated for various
+-- component types within an 'Api' in order to have sufficient information
+-- to construct a 'Server'. The 'Impl' type family defines what types
+-- describe behaviors befitting the given 'Api' type.
+--
+-- For instance, for an 'Api' like
+--
+-- @
+--   type A = Endpoint () '[ Method GET '[ CacheControl :: RawText ] Empty ]
+-- @
+-- @
+--
+-- 'Constrain' A@ forces us to have a 'HeaderS.HeaderEncode' instance for
+-- 'CacheControl' and 'RawText' and @'Impl' A@ tells us that to implement
+-- this server we must provide a 'Response' type containing no body and
+-- a header for 'CacheControl' taking type 'RawText'.
+--
+server :: (Constrain api, Monad m) => Sing api -> Impl m api -> Server m
 server sApi impl =
   case sApi of
     SRaw -> Server $ lift (fmap Application impl)
@@ -138,14 +157,14 @@ augmentVerbs = augHead . augOptions where
     | otherwise = s
   augOptions = Set.insert OPTIONS
 
-handles :: (CEndpoint hs, Monad m) => Set Verb -> Sing hs -> ImplEndpoint m hs -> Server m
+handles :: (Constrain_Endpoint hs, Monad m) => Set Verb -> Sing hs -> Impl_Endpoint m hs -> Server m
 handles verbs SNil MethodNotAllowed = methodNotAllowedS verbs
 handles verbs (SCons sHandler sRest) (handler :<|> implRest) =
   handle sHandler handler
   `orElse`
   handles verbs sRest implRest
 
-handle :: (CHandler h, Monad m) => Sing h -> ImplHandler m h -> Server m
+handle :: (Constrain_Handler h, Monad m) => Sing h -> Impl_Handler m h -> Server m
 handle sH impl = Server $
   case sH of
     SMethod sVerb _sHdrs sBody -> do
@@ -175,7 +194,7 @@ handle sH impl = Server $
       undefined -- runServer (handle sH' (impl _))
 
 handleResponse
-  :: (HeaderS.HeaderEncodes htypes, CBody b, Monad m)
+  :: (HeaderS.HeaderEncodes htypes, Constrain_Body b, Monad m)
   => Sing b -> Response htypes b -> InContext m ServerValue
 handleResponse s resp =
   case (s, resp) of
@@ -207,71 +226,75 @@ handleResponse s resp =
                 (Sl.fromStrict body)
     _ -> bugInGHC
 
-data (:=>) (c :: Constraint) (a :: *) where
-
-type I m api = C api :=> Impl m api
-
 -- Type Families
 -- ----------------------------------------------------------------------------
 
+-- | Given a monad @M@ and an 'Api' type @A@ the type @Impl M A@ contains
+-- values describing "server implementations". These types describe the
+-- custom behaviors of the server within each capacity outlined by the
+-- `Api` type @A@.
+--
+-- Beyond 'Impl' there are also four constituent type families; 3 describe
+-- the implementation types for each `Api` constructor and the last
+-- describes the specific implmentation type for the 'Handler' kind.
 type family Impl (m :: * -> *) (a :: Api Symbol *) :: * where
   Impl m Raw = m Wai.Application
-  Impl m (OneOf apis) = ImplOneOf m apis
-  Impl m (Endpoint ann hs) = ImplEndpoint m hs
-  Impl m (p :> a) = ImplPath m p (Impl m a)
+  Impl m (OneOf apis) = Impl_OneOf m apis
+  Impl m (Endpoint ann hs) = Impl_Endpoint m hs
+  Impl m (p :> a) = Impl_Path m p (Impl m a)
 
-type family ImplEndpoint (m :: * -> *) (hs :: [Handler Symbol *]) :: * where
-  ImplEndpoint m '[] = MethodNotAllowed
-  ImplEndpoint m (h ': hs) =
-    ImplHandler m h :<|> ImplEndpoint m hs
+type family Impl_Endpoint (m :: * -> *) (hs :: [Handler Symbol *]) :: * where
+  Impl_Endpoint m '[] = MethodNotAllowed
+  Impl_Endpoint m (h ': hs) =
+    Impl_Handler m h :<|> Impl_Endpoint m hs
 
-type family ImplOneOf (m :: * -> *) (as :: [Api Symbol *]) :: * where
-  ImplOneOf m '[] = NotFound
-  ImplOneOf m (a ': as) =
-    Impl m a :<|> ImplOneOf m as
+type family Impl_OneOf (m :: * -> *) (as :: [Api Symbol *]) :: * where
+  Impl_OneOf m '[] = NotFound
+  Impl_OneOf m (a ': as) =
+    Impl m a :<|> Impl_OneOf m as
 
-type family ImplPath (m :: * -> *) (p :: Path Symbol *) (r :: *) :: * where
-  ImplPath m (Const s) next = next
-  ImplPath m (HeaderAs s v) next = next
-  ImplPath m (Seg sym a) next = Tagged sym a -> next
-  ImplPath m (Header name a) next = a -> next
-  ImplPath m Wildcard next = [Text] -> next
-  ImplPath m (Cors ty) next = next
+type family Impl_Path (m :: * -> *) (p :: Path Symbol *) (r :: *) :: * where
+  Impl_Path m (Const s) next = next
+  Impl_Path m (HeaderAs s v) next = next
+  Impl_Path m (Seg sym a) next = Tagged sym a -> next
+  Impl_Path m (Header name a) next = a -> next
+  Impl_Path m Wildcard next = [Text] -> next
+  Impl_Path m (Cors ty) next = next
 
-type family ImplHandler (m :: * -> *) (h :: Handler Symbol *) :: * where
-  ImplHandler m (CaptureBody ctypes a h) = a -> ImplHandler m h
-  ImplHandler m (CaptureHeaders hspec h) = Rec hspec -> ImplHandler m h
-  ImplHandler m (CaptureQuery qspec h) = Rec qspec -> ImplHandler m h
-  ImplHandler m (Method verb htypes body) = m (Response htypes body)
+type family Impl_Handler (m :: * -> *) (h :: Handler Symbol *) :: * where
+  Impl_Handler m (CaptureBody ctypes a h) = a -> Impl_Handler m h
+  Impl_Handler m (CaptureHeaders hspec h) = Rec hspec -> Impl_Handler m h
+  Impl_Handler m (CaptureQuery qspec h) = Rec qspec -> Impl_Handler m h
+  Impl_Handler m (Method verb htypes body) = m (Response htypes body)
 
-type family C (a :: Api Symbol *) :: Constraint where
-  C Raw = ()
-  C (Endpoint ann hs) = CEndpoint hs
-  C (OneOf apis) = COneOf apis
-  C (p :> a) = (CPath p, C a)
+type family Constrain (a :: Api Symbol *) :: Constraint where
+  Constrain Raw = ()
+  Constrain (Endpoint ann hs) = Constrain_Endpoint hs
+  Constrain (OneOf apis) = Constrain_OneOf apis
+  Constrain (p :> a) = (Constrain_Path p, Constrain a)
 
-type family COneOf (as :: [Api Symbol *]) :: Constraint where
-  COneOf '[] = ()
-  COneOf (a ': as) = (C a, COneOf as)
+type family Constrain_OneOf (as :: [Api Symbol *]) :: Constraint where
+  Constrain_OneOf '[] = ()
+  Constrain_OneOf (a ': as) = (Constrain a, Constrain_OneOf as)
 
-type family CEndpoint (hs :: [Handler Symbol *]) :: Constraint where
-  CEndpoint '[] = ()
-  CEndpoint (h ': hs) = (CHandler h, CEndpoint hs)
+type family Constrain_Endpoint (hs :: [Handler Symbol *]) :: Constraint where
+  Constrain_Endpoint '[] = ()
+  Constrain_Endpoint (h ': hs) = (Constrain_Handler h, Constrain_Endpoint hs)
 
-type family CHandler (h :: Handler Symbol *) :: Constraint where
-  CHandler (CaptureBody ctypes a h) = ((), CHandler h)
-  CHandler (CaptureHeaders hspec h) = ((), CHandler h)
-  CHandler (CaptureQuery qspec h) = ((), CHandler h)
-  CHandler (Method verb htypes b) = (CBody b, HeaderS.HeaderEncodes htypes)
+type family Constrain_Handler (h :: Handler Symbol *) :: Constraint where
+  Constrain_Handler (CaptureBody ctypes a h) = ((), Constrain_Handler h)
+  Constrain_Handler (CaptureHeaders hspec h) = ((), Constrain_Handler h)
+  Constrain_Handler (CaptureQuery qspec h) = ((), Constrain_Handler h)
+  Constrain_Handler (Method verb htypes b) = (Constrain_Body b, HeaderS.HeaderEncodes htypes)
 
-type family CBody (b :: Body *) :: Constraint where
-  CBody Empty = ()
-  CBody (HasBody ctypes a) = AllEncoded a ctypes
+type family Constrain_Body (b :: Body *) :: Constraint where
+  Constrain_Body Empty = ()
+  Constrain_Body (HasBody ctypes a) = AllEncoded a ctypes
 
-type family CPath (p :: Path Symbol *) :: Constraint where
-  CPath (Const s) = KnownSymbol s
-  CPath (HeaderAs s v) = (SingI s, KnownSymbol v)
-  CPath (Seg sym a) = (KnownSymbol sym, URI.URIDecode a)
-  CPath (Header name a) = HeaderS.HeaderDecode name a
-  CPath Wildcard = ()
-  CPath (Cors ty) = Cors.CorsPolicy ty
+type family Constrain_Path (p :: Path Symbol *) :: Constraint where
+  Constrain_Path (Const s) = KnownSymbol s
+  Constrain_Path (HeaderAs s v) = (SingI s, KnownSymbol v)
+  Constrain_Path (Seg sym a) = (KnownSymbol sym, URI.URIDecode a)
+  Constrain_Path (Header name a) = HeaderS.HeaderDecode name a
+  Constrain_Path Wildcard = ()
+  Constrain_Path (Cors ty) = Cors.CorsPolicy ty
