@@ -18,8 +18,8 @@ before_install:
 
 install:
   - ./travis/long stack --no-terminal --skip-ghc-check setup
-  - ./travis/long stack --no-terminal --skip-ghc-check test --only-snapshot --fast --pedantic
+  - ./travis/long stack --no-terminal --skip-ghc-check build --test --haddock --only-snapshot --fast --pedantic
 
 script:
   - stack --no-terminal --skip-ghc-check test --fast --pedantic
-  - ./travis/long stack --no-terminal --skip-ghc-check haddock
+  - stack --no-terminal --skip-ghc-check haddock --fast --pedantic
