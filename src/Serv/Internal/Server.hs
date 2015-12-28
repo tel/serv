@@ -38,13 +38,6 @@ import           Serv.Internal.Server.Type
 import qualified Serv.Internal.URI                  as URI
 import           Serv.Internal.Verb
 
-addCorsHeaders :: Maybe [HTTP.Header] -> ServerValue -> ServerValue
-addCorsHeaders hdrs v =
-  case v of
-    WaiResponse resp ->
-      WaiResponse (Wai.mapResponseHeaders (maybe [] id hdrs ++) resp)
-    other -> other
-
 -- | Construct a 'Server' value for a given 'Api' type by providing an
 -- 'Impl' describing the semantics and server behaviors for that 'Api'.
 --
@@ -147,6 +140,13 @@ server sApi impl =
         SCors sTy -> do
           addCorsPolicy (Cors.corsPolicy sTy)
           runServer (server sApi' impl)
+
+addCorsHeaders :: Maybe [HTTP.Header] -> ServerValue -> ServerValue
+addCorsHeaders hdrs v =
+  case v of
+    WaiResponse resp ->
+      WaiResponse (Wai.mapResponseHeaders (maybe [] id hdrs ++) resp)
+    other -> other
 
 -- | Augment the Set of allowed verbs by adding OPTIONS and, as necessary,
 -- HEAD.
