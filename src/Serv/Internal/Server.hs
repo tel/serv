@@ -207,27 +207,6 @@ handleResponse s resp =
                 (Sl.fromStrict body)
     _ -> bugInGHC
 
--- negotiateContentAlways
---   :: AllEncoded a ctypes =>
---      Sing ctypes -> [Media.Quality MediaType] -> a -> Maybe (MediaType, S.ByteString)
-
-    -- TODO
-    -- SCaptureBody sCTypes sTy sNext ->
-    --   handle sNext (impl $ _handleCapture sCTypes sTy)
-    -- SCaptureHeaders sHdrs sNext ->
-    --   handle sNext (impl $ _handleCaptureHdrs sHdrs)
-    -- SCaptureQuery sQuery sNext ->
-    --   handle sNext (impl $ _handleCaptureQuery sQuery)
-
--- encodeBody :: WaiResponse hdrs body => Context -> Response hdrs body -> ServerValue
--- encodeBody ctx resp =
---   case acceptHdr of
---     Left _ -> WaiResponse (waiResponse [] resp)
---     Right acceptList ->
---       WaiResponse (waiResponse acceptList resp)
---   where
---     (_, acceptHdr) = Context.examineHeader Hp.accept ctx
---
 data (:=>) (c :: Constraint) (a :: *) where
 
 type I m api = C api :=> Impl m api
