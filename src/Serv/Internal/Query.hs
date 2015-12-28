@@ -24,7 +24,6 @@ import qualified Network.HTTP.Types       as HTTP
 import           Serv.Internal.Pair
 import           Serv.Internal.RawText
 import           Serv.Internal.Rec
-import           Serv.Internal.TypeLevel
 
 -- Data Types
 -- ----------------------------------------------------------------------------
@@ -120,7 +119,7 @@ instance QueryEncode s RawText where
 -- treat a query parameter which was provided without a value as having
 -- actually provided an empty value @""@.
 instance QueryEncode s a => QueryEncode s (Maybe a) where
-  queryEncode p Nothing = KeyAbsent
+  queryEncode _ Nothing = KeyAbsent
   queryEncode p (Just a) =
     case queryEncode p a of
       KeyAbsent -> KeyAbsent
