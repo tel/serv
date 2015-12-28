@@ -1,5 +1,5 @@
-{-# LANGUAGE DataKinds            #-}
 {-# LANGUAGE ConstraintKinds      #-}
+{-# LANGUAGE DataKinds            #-}
 {-# LANGUAGE ExplicitForAll       #-}
 {-# LANGUAGE MultiWayIf           #-}
 {-# LANGUAGE OverloadedStrings    #-}
@@ -11,8 +11,8 @@
 
 module Serv.Internal.Server where
 
-import qualified Data.ByteString.Lazy as Sl
 import           Control.Monad.Trans
+import qualified Data.ByteString.Lazy               as Sl
 import           Data.Maybe                         (catMaybes)
 import           Data.Set                           (Set)
 import qualified Data.Set                           as Set
@@ -30,10 +30,10 @@ import           Serv.Internal.Api.Analysis
 import           Serv.Internal.Cors                 as Cors
 import qualified Serv.Internal.Header               as Header
 import qualified Serv.Internal.Header.Serialization as HeaderS
+import           Serv.Internal.MediaType
 import           Serv.Internal.Rec
 import           Serv.Internal.Server.Monad
 import           Serv.Internal.Server.Response
-import           Serv.Internal.MediaType
 import           Serv.Internal.Server.Type
 import qualified Serv.Internal.URI                  as URI
 import           Serv.Internal.Verb
