@@ -29,7 +29,9 @@ module Serv.Server (
     , (:<|>) (..), NotFound (..), MethodNotAllowed (..)
 
     , Response
+    , respond
     , emptyResponse
+    , errorResponse
     , withBody
     , withHeader
     , withQuietHeader

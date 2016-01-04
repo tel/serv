@@ -37,12 +37,12 @@ impl :: Impl IO TheApi
 impl _ifRange = get :<|> delete :<|> MethodNotAllowed
   where
     get =
-      return
+      respond
       $ emptyResponse ok200
       & withHeader H.SXCsrfToken "some-csrf-token"
       & withBody "Hello"
     delete =
-      return
+      respond
       $ emptyResponse noContent204
 
 theServer :: Server IO

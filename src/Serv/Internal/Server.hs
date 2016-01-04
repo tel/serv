@@ -173,14 +173,14 @@ handle sH impl = Server $
           runServer notFoundS
 
         (Just HEAD, GET) -> do
-          resp <- lift impl
+          AResponse resp <- lift impl
           handleResponse SEmpty (deleteBody resp)
 
         (Just req, have)
           | req /= have ->
               runServer notFoundS
           | otherwise -> do
-              resp <- lift impl
+              AResponse resp <- lift impl
               handleResponse sBody resp
 
     -- TODO: These...
@@ -194,9 +194,16 @@ handle sH impl = Server $
 
 handleResponse
   :: (HeaderS.HeaderEncodes htypes, Constrain_Body b, Monad m)
-  => Sing b -> Response htypes b -> InContext m ServerValue
+  => Sing b -> Response e htypes b -> InContext m ServerValue
 handleResponse s resp =
   case (s, resp) of
+    (_, ErrorResponse status headers body) ->
+      return
+        $ WaiResponse
+        $ Wai.responseLBS
+            status
+            headers
+            (maybe "" id body)
     (SEmpty, EmptyResponse status secretHeaders headers) ->
       return
         $ WaiResponse
@@ -264,7 +271,7 @@ type family Impl_Handler (m :: * -> *) (h :: Handler Symbol *) :: * where
   Impl_Handler m (CaptureBody ctypes a h) = a -> Impl_Handler m h
   Impl_Handler m (CaptureHeaders hspec h) = Rec hspec -> Impl_Handler m h
   Impl_Handler m (CaptureQuery qspec h) = Rec qspec -> Impl_Handler m h
-  Impl_Handler m (Method verb htypes body) = m (Response htypes body)
+  Impl_Handler m (Method verb htypes body) = m (AResponse htypes body)
 
 type family Constrain (a :: Api Symbol *) :: Constraint where
   Constrain Raw = ()

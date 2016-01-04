@@ -25,24 +25,28 @@ type TheApi
   = Endpoint ()
     '[ Method GET '[ 'H.CacheControl ::: RawText ] RawBody
      , Method PUT '[ 'H.CacheControl ::: RawText ] JSONBody
+     , Method DELETE '[] Empty
      ]
 
 apiSing :: Sing TheApi
 apiSing = sing
 
 impl :: Impl IO TheApi
-impl = get :<|> put :<|> MethodNotAllowed
+impl = get :<|> put :<|> delete :<|> MethodNotAllowed
   where
     get =
-      return
+      respond
       $ emptyResponse ok200
       & withHeader H.SCacheControl "foo"
       & withBody "Hello"
     put =
-      return
+      respond
       $ emptyResponse ok200
       & withHeader H.SCacheControl "foo"
       & withBody [1, 2, 3]
+    delete =
+      respond
+      $ errorResponse status500 [] (Just "Server error")
 
 
 theServer :: Server IO
@@ -81,7 +85,7 @@ test1 = testGroup "Simple responses"
       resp <- T.request req
       T.assertStatus 200 resp
       T.assertBody "" resp
-      T.assertHeader "Allow" "GET,HEAD,OPTIONS,PUT" resp
+      T.assertHeader "Allow" "DELETE,GET,HEAD,OPTIONS,PUT" resp
 
   , Hu.testCase "Proper HEAD response" $ runTest $ do
       let req = Wai.defaultRequest
@@ -90,6 +94,13 @@ test1 = testGroup "Simple responses"
       T.assertStatus 200 resp
       T.assertBody "" resp
       T.assertHeader "Cache-Control" "foo" resp
+
+  , Hu.testCase "Error on DELETE response" $ runTest $ do
+      let req = Wai.defaultRequest
+                { Wai.requestMethod = "DELETE" }
+      resp <- T.request req
+      T.assertStatus 500 resp
+      T.assertBody "Server error" resp
 
   , Hu.testCase "Missing response at bad path" $ runTest $ do
       let req =
@@ -101,7 +112,7 @@ test1 = testGroup "Simple responses"
       T.assertNoHeader "Cache-Control" resp
 
   , testGroup "Missing responses at wrong methods"
-    $ flip map ["DELETE", "POST"] $ \method ->
+    $ flip map ["POST", "NOTAMETHOD"] $ \method ->
       Hu.testCase ("Missing response at method " ++ method) $ runTest $ do
         let req =
               Wai.defaultRequest

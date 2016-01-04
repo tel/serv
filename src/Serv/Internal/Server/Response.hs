@@ -1,11 +1,12 @@
-{-# LANGUAGE DataKinds      #-}
-{-# LANGUAGE OverloadedStrings      #-}
-{-# LANGUAGE GADTs          #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE TypeOperators  #-}
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE KindSignatures    #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeOperators     #-}
 
 module Serv.Internal.Server.Response where
 
+import qualified Data.ByteString.Lazy                    as Sl
 import           Data.Function                      ((&))
 import           Data.Singletons
 import           GHC.TypeLits
@@ -16,34 +17,51 @@ import           Serv.Internal.Header.Serialization
 import           Serv.Internal.Pair
 import           Serv.Internal.Rec
 
+data ResponseType = Ok | NonStandard
+
+type Ok = 'Ok
+type NonStandard = 'NonStandard
+
 -- | Responses generated in 'Server' implementations.
-data Response (headers :: [ (HeaderType Symbol, *) ]) body where
+data Response (ty :: ResponseType) (headers :: [ (HeaderType Symbol, *) ]) body where
   Response
     :: HTTP.Status
     -> [HTTP.Header]
     -> Rec headers
     -> a
-    -> Response headers ('HasBody ctypes a)
+    -> Response Ok headers ('HasBody ctypes a)
   EmptyResponse
     :: HTTP.Status
     -> [HTTP.Header]
     -> Rec headers
-    -> Response headers 'Empty
+    -> Response Ok headers 'Empty
+  ErrorResponse
+    :: HTTP.Status
+    -> [HTTP.Header]
+    -> Maybe Sl.ByteString
+    -> Response NonStandard headers body
+
+-- | Papers over the distinction between standard and non-standard responses.
+data AResponse headers body where
+  AResponse :: Response e headers body -> AResponse headers body
+
+respond :: Monad m => Response e headers body -> m (AResponse headers body)
+respond = return . AResponse
 
 -- An 'emptyResponse' returns the provided status message with no body or headers
-emptyResponse :: HTTP.Status -> Response '[] 'Empty
+emptyResponse :: HTTP.Status -> Response Ok '[] 'Empty
 emptyResponse status = EmptyResponse status [] Nil
 
 -- | Adds a body to a response
 withBody
-  :: a -> Response headers 'Empty -> Response headers ('HasBody ctypes a)
+  :: a -> Response Ok headers 'Empty -> Response Ok headers ('HasBody ctypes a)
 withBody a (EmptyResponse status secretHeaders headers) =
   Response status secretHeaders headers a
 
 -- | Adds a header to a response
 withHeader
   :: Sing name -> value
-  -> Response headers body -> Response (name ::: value ': headers) body
+  -> Response Ok headers body -> Response Ok (name ::: value ': headers) body
 withHeader s val r = case r of
   Response status secretHeaders headers body ->
     Response status secretHeaders (headers & s -: val) body
@@ -55,7 +73,7 @@ withHeader s val r = case r of
 withQuietHeader
   :: HeaderEncode name value
      => Sing name -> value
-     -> Response headers body -> Response headers body
+     -> Response e headers body -> Response e headers body
 withQuietHeader s value r =
   case headerPair s value of
     Nothing -> r
@@ -65,23 +83,32 @@ withQuietHeader s value r =
           Response status (newHeader : secretHeaders) headers body
         EmptyResponse status secretHeaders headers ->
           EmptyResponse status (newHeader : secretHeaders) headers
+        ErrorResponse status headers body ->
+          ErrorResponse status (newHeader : headers) body
+
+-- | Construct a response in the event of an error. These are /not/ tracked
+-- by the API type and are therefore free to return whatever they like.
+errorResponse :: HTTP.Status -> [HTTP.Header] -> Maybe Sl.ByteString -> Response NonStandard h b
+errorResponse = ErrorResponse
 
 -- | If a response type is complete defined by its implementation then
 -- applying 'resorted' to it will future proof it against reorderings
 -- of headers. If the response type is not completely inferrable, however,
 -- then this will require manual annotations of the "pre-sorted" response.
-resortHeaders :: RecordIso headers headers' => Response headers body -> Response headers' body
+resortHeaders :: RecordIso headers headers' => Response e headers body -> Response e headers' body
 resortHeaders r =
   case r of
     Response status secretHeaders headers body ->
       Response status secretHeaders (reorder headers) body
     EmptyResponse status secretHeaders headers ->
       EmptyResponse status secretHeaders (reorder headers)
+    ErrorResponse s h b -> ErrorResponse s h b
 
 -- | Used primarily for implementing @HEAD@ request automatically.
-deleteBody :: Response headers body -> Response headers 'Empty
+deleteBody :: Response e headers body -> Response e headers 'Empty
 deleteBody r =
   case r of
     Response status secretHeaders headers _ ->
       EmptyResponse status secretHeaders headers
     EmptyResponse{} -> r
+    ErrorResponse s h _ -> ErrorResponse s h Nothing
