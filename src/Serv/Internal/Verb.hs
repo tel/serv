@@ -1,7 +1,10 @@
 {-# LANGUAGE DataKinds            #-}
 {-# LANGUAGE GADTs                #-}
+{-# LANGUAGE InstanceSigs         #-}
 {-# LANGUAGE KindSignatures       #-}
 {-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE PolyKinds            #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE TemplateHaskell      #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -11,6 +14,7 @@ module Serv.Internal.Verb where
 import qualified Data.ByteString      as S
 import qualified Data.CaseInsensitive as CI
 import           Data.Singletons.TH
+import           Data.Singletons.Prelude
 import           Data.String
 
 -- TRACE is intentionally omitted because (a) it's very low value and (b)
