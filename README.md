@@ -10,6 +10,39 @@ the client definitions, and the documentation. Unlike other such efforts, the
 API descriptions are *types* and type level computation can be used to ensure
 that the server, client, and documentation *always match*.
 
+# Status and how you can help!
+
+**Serv is still in the early design phases.** Contribution is *very welcome*
+along the lines of the public API (the API types, especially) and functionality
+requests. I’m also really quite bad at naming things sometimes and would not
+mind *at all* some commentary.
+
+Files to critique:
+
+- [Serv.Internal.Api](https://github.com/tel/serv/blob/master/src/Serv/Internal/Api.hs)
+  which is where the types and kinds of the API interface definition language
+  are described. This is easily the *most vital* part of Serv.
+- [Serv.Internal.Header](https://github.com/tel/serv/blob/master/src/Serv/Internal/Header.hs)
+  is where a *big*, *complicated* type encodes all common headers allowing for
+  extension. This feels like a bad idea sometimes, but it certainly *seems* to
+  fit with the house hasochism style.
+- [Serv.Internal.Header.Serialization](https://github.com/tel/serv/blob/master/src/Serv/Internal/Header/Serialization.hs)
+  describes how to give semantics to text blobs by claiming that they’re
+  supposed to be a representation of some Haskell type under the regime of a
+  given header. What kinds of things should be added here? How can Serv best
+  handle the orphan instance issue?
+- [Serv.Internal.Api.Annotation](https://github.com/tel/serv/blob/master/src/Serv/Internal/Api/Annotation.hs)
+  Currently this is basically unused, but it’s goal is to provide a way to have
+  a hook into *endpoints* instead of the data types they return (*a la*
+  Servant) for documentation purposes. The design here is super speculative.
+- [Serv.Internal.Server](https://github.com/tel/serv/tree/master/src/Serv/Internal/Server)
+  This whole hunk of junk is the driving use case for the entire library at the
+  moment! It’s also sloppy as all hell at times as is resolves itself against
+  the changing `Api` API.
+
+I’m also very interested in tips and tricks for working with singleton types as
+that’s a key piece of how Serv works!
+
 # Overview
 
 Most APIs have a simple regular structure which is shared by the server, the
