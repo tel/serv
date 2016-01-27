@@ -39,6 +39,12 @@ data SomeResponse (alts :: [Alternative Nat Symbol *]) where
     :: HTTP.Status -> [HTTP.Header] -> Maybe Sl.ByteString
     -> SomeResponse alts
 
+-- TODO: We need more than just this proof: we need a path into the list!
+-- Without this we cannot recover constraints placed on the response "from
+-- the outside"
+
+-- | While a response is constructed using other means, the response is
+-- finalized here. This is essential for typing purposes alone.
 respond
   :: (Elem (Responding code hdrs body) alts ~ True, Monad m)
   => Response code hdrs body -> m (SomeResponse alts)
@@ -53,6 +59,7 @@ respondExceptionally = NonStandardResponse
 emptyResponse :: Sing c -> Response c '[] 'Empty
 emptyResponse _status = emptyResponse'
 
+-- An 'emptyResponse'' returns the provided status message with no body or headers
 emptyResponse' :: Response c '[] 'Empty
 emptyResponse' = EmptyResponse [] Nil
 

@@ -163,8 +163,8 @@ type NetworkAuthenticationRequired = 'NetworkAuthenticationRequired
 statusCode :: forall (c :: StatusCode Nat) . Sing c -> StatusCode Integer
 statusCode = fromSing
 
-code :: StatusCode Integer -> Integer
-code c =
+codeNum :: StatusCode Integer -> Integer
+codeNum c =
   case c of
     CustomStatus int -> int
 
