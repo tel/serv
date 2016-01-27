@@ -43,8 +43,6 @@ singletons
 
 type Responding code hdrs body = 'Responding code hdrs body
 
--- type Responding code hdrs body = 'Responding code hdrs body
-
 -- | A 'Handler' is a single HTTP verb response handled at a given 'Endpoint'.
 -- In order to complete a 'Handler''s operation it may demand data from the
 -- request such as headers or the request body.
