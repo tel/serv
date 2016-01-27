@@ -166,7 +166,7 @@ statusCode = fromSing
 code :: StatusCode Integer -> Integer
 code c =
   case c of
-    CustomStatus code -> code
+    CustomStatus int -> int
 
     Continue -> 100
     SwitchingProtocols -> 101
