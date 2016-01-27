@@ -60,7 +60,7 @@ hush :: Either e a -> Maybe a
 hush = either (const Nothing) Just
 
 corsHeaders
-  :: forall (hs :: [Handler Symbol *])
+  :: forall (hs :: [Handler Nat Symbol *])
   . Sing hs -> Cors.IncludeMethods -> Context -> Maybe [HTTP.Header]
 corsHeaders s includeMethods ctx = do
   let ana = Analysis.inspectEndpoint s

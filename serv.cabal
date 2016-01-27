@@ -40,6 +40,7 @@ library
     Serv.Internal.Server.Response
     Serv.Internal.Server.Type
     Serv.Internal.Server
+    Serv.Internal.StatusCode
     Serv.Internal.TypeLevel
     Serv.Internal.URI
     Serv.Internal.Verb

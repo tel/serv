@@ -76,7 +76,7 @@ expectHeader :: forall m (n :: HeaderType Symbol) . Monad m => Sing n -> Text ->
 expectHeader s value = state (swap . Ctx.expectHeader s value)
 
 corsHeaders
-  :: forall m (hs :: [Handler Symbol *])
+  :: forall m (hs :: [Handler Nat Symbol *])
   . Monad m => Sing hs -> Cors.IncludeMethods -> InContext m (Maybe [HTTP.Header])
 corsHeaders s incl = do
   ctx <- get

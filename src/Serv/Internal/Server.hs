@@ -243,18 +243,18 @@ handleResponse s resp =
 -- Beyond 'Impl' there are also four constituent type families; 3 describe
 -- the implementation types for each `Api` constructor and the last
 -- describes the specific implmentation type for the 'Handler' kind.
-type family Impl (m :: * -> *) (a :: Api Symbol *) :: * where
+type family Impl (m :: * -> *) (a :: Api Nat Symbol *) :: * where
   Impl m Raw = m Wai.Application
   Impl m (OneOf apis) = Impl_OneOf m apis
   Impl m (Endpoint ann hs) = Impl_Endpoint m hs
   Impl m (p :> a) = Impl_Path m p (Impl m a)
 
-type family Impl_Endpoint (m :: * -> *) (hs :: [Handler Symbol *]) :: * where
+type family Impl_Endpoint (m :: * -> *) (hs :: [Handler Nat Symbol *]) :: * where
   Impl_Endpoint m '[] = MethodNotAllowed
   Impl_Endpoint m (h ': hs) =
     Impl_Handler m h :<|> Impl_Endpoint m hs
 
-type family Impl_OneOf (m :: * -> *) (as :: [Api Symbol *]) :: * where
+type family Impl_OneOf (m :: * -> *) (as :: [Api Nat Symbol *]) :: * where
   Impl_OneOf m '[] = NotFound
   Impl_OneOf m (a ': as) =
     Impl m a :<|> Impl_OneOf m as
@@ -267,31 +267,36 @@ type family Impl_Path (m :: * -> *) (p :: Path Symbol *) (r :: *) :: * where
   Impl_Path m Wildcard next = [Text] -> next
   Impl_Path m (Cors ty) next = next
 
-type family Impl_Handler (m :: * -> *) (h :: Handler Symbol *) :: * where
+type family Impl_Handler (m :: * -> *) (h :: Handler Nat Symbol *) :: * where
   Impl_Handler m (CaptureBody ctypes a h) = a -> Impl_Handler m h
   Impl_Handler m (CaptureHeaders hspec h) = Rec hspec -> Impl_Handler m h
   Impl_Handler m (CaptureQuery qspec h) = Rec qspec -> Impl_Handler m h
-  Impl_Handler m (Method verb htypes body) = m (AResponse htypes body)
+  Impl_Handler m (Method verb alts) = m (Response alts)
 
-type family Constrain (a :: Api Symbol *) :: Constraint where
+type family Constrain (a :: Api Nat Symbol *) :: Constraint where
   Constrain Raw = ()
   Constrain (Endpoint ann hs) = Constrain_Endpoint hs
   Constrain (OneOf apis) = Constrain_OneOf apis
   Constrain (p :> a) = (Constrain_Path p, Constrain a)
 
-type family Constrain_OneOf (as :: [Api Symbol *]) :: Constraint where
+type family Constrain_OneOf (as :: [Api Nat Symbol *]) :: Constraint where
   Constrain_OneOf '[] = ()
   Constrain_OneOf (a ': as) = (Constrain a, Constrain_OneOf as)
 
-type family Constrain_Endpoint (hs :: [Handler Symbol *]) :: Constraint where
+type family Constrain_Endpoint (hs :: [Handler Nat Symbol *]) :: Constraint where
   Constrain_Endpoint '[] = ()
   Constrain_Endpoint (h ': hs) = (Constrain_Handler h, Constrain_Endpoint hs)
 
-type family Constrain_Handler (h :: Handler Symbol *) :: Constraint where
+type family Constrain_Handler (h :: Handler Nat Symbol *) :: Constraint where
   Constrain_Handler (CaptureBody ctypes a h) = ((), Constrain_Handler h)
   Constrain_Handler (CaptureHeaders hspec h) = ((), Constrain_Handler h)
   Constrain_Handler (CaptureQuery qspec h) = ((), Constrain_Handler h)
-  Constrain_Handler (Method verb htypes b) = (Constrain_Body b, HeaderS.HeaderEncodes htypes)
+  Constrain_Handler (Method verb responses) = Constrain_Responses responses
+
+type family Constrain_Responses (rs :: [Alternative Nat Symbol *]) :: Constraint where
+  Constrain_Responses '[] = ()
+  Constrain_Responses (Responding code htypes b ': responses) =
+    (Constrain_Body b, HeaderS.HeaderEncodes htypes, Constrain_Responses responses)
 
 type family Constrain_Body (b :: Body *) :: Constraint where
   Constrain_Body Empty = ()
