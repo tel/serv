@@ -178,7 +178,7 @@ handle sH impl = Server $
                                   -- make that judgement locally.
           | otherwise -> do
               someResponse <- lift impl
-              handleResponse (verbRequested /= HEAD) someResponse
+              handleResponse (verbRequested /= HEAD) sAlts someResponse
 
     -- TODO: These...
 
@@ -191,52 +191,53 @@ handle sH impl = Server $
 
 handleResponse
   :: (Constrain_Alternatives alts, Monad m)
-  => Bool -> SomeResponse alts -> InContext m ServerValue
-handleResponse withBody resp =
-  case resp of
-    NonStandardResponse status headers body -> do
-      let solidBody =
-            if withBody
-              then maybe "" id body
-              else ""
-      return $ WaiResponse $ Wai.responseLBS status headers solidBody
-    StandardResponse (resp :: Response status hdrs body) ->
-      case resp of
-        EmptyResponse secretHeaders headers -> do
-          let status = StatusCode.codeNum (fromSing (sing :: Sing status))
+  => Bool -> Sing alts -> SomeResponse alts -> InContext m ServerValue
+handleResponse includeBody (SCons _ sRest) (SkipResponse someResponse) =
+  handleResponse includeBody sRest someResponse
+handleResponse includeBody (SCons (SResponding sStatus sHeaders sBody) _) (StandardResponse resp) =
+  case (sBody, resp) of
+    (SEmpty, EmptyResponse secretHeaders headers) ->
+      respondNoBody secretHeaders headers
+    (SHasBody sCtypes sTy, ContentResponse secretHeaders headers a)
+      | not includeBody -> do
+          respondNoBody secretHeaders headers
+      | otherwise -> do
+          respondBody secretHeaders headers sCtypes a
+
+  where
+    respondNoBody
+      :: (HeaderS.HeaderEncodes hdrs, Monad m)
+      => [HTTP.Header] -> Rec hdrs -> InContext m ServerValue
+    respondNoBody secretHeaders headers =
+      return
+        $ WaiResponse
+        $ Wai.responseLBS
+            (StatusCode.httpStatus (fromSing sStatus))
+            (secretHeaders ++ HeaderS.encodeHeaders headers)
+            ""
+
+    respondBody
+      :: (Constrain_Body (HasBody ctypes a), HeaderS.HeaderEncodes hdrs, Monad m)
+      => [HTTP.Header] -> Rec hdrs -> Sing ctypes -> a -> InContext m ServerValue
+    respondBody secretHeaders headers sCtypes a = do
+      accepts <- examineHeader Header.SAccept
+      case negotiateContentAlways sCtypes (either (const []) id accepts) a of
+        Nothing ->
+          return
+            $ WaiResponse
+            $ Wai.responseLBS HTTP.notAcceptable406 [] ""
+        Just (mt, body) -> do
+          let newHeaders =
+                catMaybes [ HeaderS.headerPair Header.SContentType mt ]
           return
             $ WaiResponse
             $ Wai.responseLBS
-                status
-                (secretHeaders ++ HeaderS.encodeHeaders headers)
-                ""
-    -- EmptyResponse status secretHeaders headers ->
-    --   return
-    --     $ WaiResponse
-    --     $ Wai.responseLBS
-    --         status
-    --         (secretHeaders ++ HeaderS.encodeHeaders headers)
-    --         ""
-    -- (SHasBody sCtypes _sTy, Response status secretHeaders headers a) -> do
-    --   accepts <- examineHeader Header.SAccept
-    --   case negotiateContentAlways sCtypes (either (const []) id accepts) a of
-    --     Nothing ->
-    --       return
-    --         $ WaiResponse
-    --         $ Wai.responseLBS HTTP.notAcceptable406 [] ""
-    --     Just (mt, body) -> do
-    --       let newHeaders =
-    --             catMaybes [ HeaderS.headerPair Header.SContentType mt ]
-    --       return
-    --         $ WaiResponse
-    --         $ Wai.responseLBS
-    --             status
-    --             ( newHeaders
-    --               ++ secretHeaders
-    --               ++ HeaderS.encodeHeaders headers
-    --             )
-    --             (Sl.fromStrict body)
-    -- _ -> bugInGHC
+                (StatusCode.httpStatus (fromSing sStatus))
+                ( newHeaders
+                  ++ secretHeaders
+                  ++ HeaderS.encodeHeaders headers
+                )
+                (Sl.fromStrict body)
 
 -- Type Families
 -- ----------------------------------------------------------------------------
@@ -297,7 +298,7 @@ type family Constrain_Handler (h :: Handler Nat Symbol *) :: Constraint where
   Constrain_Handler (CaptureBody ctypes a h) = ((), Constrain_Handler h)
   Constrain_Handler (CaptureHeaders hspec h) = ((), Constrain_Handler h)
   Constrain_Handler (CaptureQuery qspec h) = ((), Constrain_Handler h)
-  Constrain_Handler (Method verb responses) = Constrain_Alternatives responses
+  Constrain_Handler (Method verb responses) = (SingI responses, Constrain_Alternatives responses)
 
 type family Constrain_Alternatives (rs :: [Alternative Nat Symbol *]) :: Constraint where
   Constrain_Alternatives '[] = ()

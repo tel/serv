@@ -1,9 +1,14 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE GADTs             #-}
-{-# LANGUAGE KindSignatures    #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies      #-}
-{-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 module Serv.Internal.Server.Response where
 
@@ -31,29 +36,31 @@ data Response (status :: StatusCode Nat) (headers :: [ (HeaderType Symbol, *) ])
     -> Response status headers 'Empty
 
 data SomeResponse (alts :: [Alternative Nat Symbol *]) where
+  SkipResponse
+    :: SomeResponse alts -> SomeResponse (Responding code hdrs body ': alts)
   StandardResponse
-    :: Elem (Responding code hdrs body) alts ~ True
-    => Response code hdrs body
-    -> SomeResponse alts
-  NonStandardResponse
-    :: HTTP.Status -> [HTTP.Header] -> Maybe Sl.ByteString
-    -> SomeResponse alts
+    :: Response code hdrs body
+    -> SomeResponse (Responding code hdrs body ': alts)
 
--- TODO: We need more than just this proof: we need a path into the list!
--- Without this we cannot recover constraints placed on the response "from
--- the outside"
+class ValidResponse alts status headers body where
+  injectResponse :: Response status headers body -> SomeResponse alts
+
+instance
+    {-# OVERLAPS #-} ValidResponse
+    (Responding status headers body ': alts) status headers body where
+  injectResponse = StandardResponse
+
+instance
+    ValidResponse alts status headers body =>
+    ValidResponse (Responding status' headers' body' ': alts) status headers body where
+  injectResponse = SkipResponse . injectResponse
 
 -- | While a response is constructed using other means, the response is
 -- finalized here. This is essential for typing purposes alone.
 respond
-  :: (Elem (Responding code hdrs body) alts ~ True, Monad m)
+  :: (ValidResponse alts code hdrs body, Monad m)
   => Response code hdrs body -> m (SomeResponse alts)
-respond = return . StandardResponse
-
--- | Construct a response in the event of an error. These are /not/ tracked
--- by the API type and are therefore free to return whatever they like.
-respondExceptionally :: HTTP.Status -> [HTTP.Header] -> Maybe Sl.ByteString -> SomeResponse alts
-respondExceptionally = NonStandardResponse
+respond = return . injectResponse
 
 -- An 'emptyResponse' returns the provided status message with no body or headers
 emptyResponse :: Sing c -> Response c '[] 'Empty
