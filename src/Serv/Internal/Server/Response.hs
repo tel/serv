@@ -12,10 +12,8 @@
 
 module Serv.Internal.Server.Response where
 
-import qualified Data.ByteString.Lazy               as Sl
 import           Data.Function                      ((&))
 import           Data.Singletons
-import           Data.Singletons.Prelude.List
 import           GHC.TypeLits
 import qualified Network.HTTP.Types                 as HTTP
 import           Serv.Internal.Api
@@ -35,12 +33,12 @@ data Response (status :: StatusCode Nat) (headers :: [ (HeaderType Symbol, *) ])
     :: [HTTP.Header] -> Rec headers
     -> Response status headers 'Empty
 
-data SomeResponse (alts :: [Alternative Nat Symbol *]) where
+data SomeResponse (alts :: [ (StatusCode Nat, Output Symbol *) ]) where
   SkipResponse
-    :: SomeResponse alts -> SomeResponse (Responding code hdrs body ': alts)
+    :: SomeResponse alts -> SomeResponse (code ::: Respond hdrs body ': alts)
   StandardResponse
     :: Response code hdrs body
-    -> SomeResponse (Responding code hdrs body ': alts)
+    -> SomeResponse (code ::: Respond hdrs body ': alts)
 
 class ValidResponse alts status headers body where
   injectResponse :: Response status headers body -> SomeResponse alts
@@ -53,12 +51,12 @@ class ValidResponse alts status headers body where
 -- status, as desired, then try to unify the other two later.
 instance
     {-# OVERLAPS #-} (headers' ~ headers, body' ~ body) => ValidResponse
-    (Responding status headers' body' ': alts) status headers body where
+    (status ::: Respond headers' body' ': alts) status headers body where
   injectResponse = StandardResponse
 
 instance
     ValidResponse alts status headers body =>
-    ValidResponse (Responding status' headers' body' ': alts) status headers body where
+    ValidResponse (status' ::: Respond headers' body' ': alts) status headers body where
   injectResponse = SkipResponse . injectResponse
 
 -- | While a response is constructed using other means, the response is

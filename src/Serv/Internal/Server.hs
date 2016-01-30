@@ -31,10 +31,12 @@ import           Serv.Internal.Cors                 as Cors
 import qualified Serv.Internal.Header               as Header
 import qualified Serv.Internal.Header.Serialization as HeaderS
 import           Serv.Internal.MediaType
+import           Serv.Internal.Pair
 import           Serv.Internal.Rec
 import           Serv.Internal.Server.Monad
 import           Serv.Internal.Server.Response
 import           Serv.Internal.Server.Type
+import           Serv.Internal.StatusCode           (StatusCode)
 import qualified Serv.Internal.StatusCode           as StatusCode
 import qualified Serv.Internal.URI                  as URI
 import           Serv.Internal.Verb
@@ -193,19 +195,26 @@ handle sH impl = Server $
       undefined -- runServer (handle sH' (impl _))
 
 handleResponse
-  :: (Constrain_Alternatives alts, Monad m)
+  :: (Constrain_Outputs alts, Monad m)
   => Bool -> Sing alts -> SomeResponse alts -> InContext m ServerValue
+
 handleResponse includeBody (SCons _ sRest) (SkipResponse someResponse) =
   handleResponse includeBody sRest someResponse
-handleResponse includeBody (SCons (SResponding sStatus sHeaders sBody) _) (StandardResponse resp) =
+
+handleResponse
+  includeBody
+  (SCons (STuple2 sStatus (SRespond _sHeaders sBody)) _)
+  (StandardResponse resp) =
+
   case (sBody, resp) of
     (SEmpty, EmptyResponse secretHeaders headers) ->
       respondNoBody (StatusCode.httpStatus (fromSing sStatus)) secretHeaders headers
-    (SHasBody sCtypes sTy, ContentResponse secretHeaders headers a)
+    (SHasBody sCtypes _sTy, ContentResponse secretHeaders headers a)
       | not includeBody -> do
           respondNoBody HTTP.ok200 secretHeaders headers
       | otherwise -> do
           respondBody secretHeaders headers sCtypes a
+    _ -> bugInGHC
 
   where
     respondNoBody
@@ -241,6 +250,8 @@ handleResponse includeBody (SCons (SResponding sStatus sHeaders sBody) _) (Stand
                   ++ HeaderS.encodeHeaders headers
                 )
                 (Sl.fromStrict body)
+
+handleResponse _ _ _ = bugInGHC
 
 -- Type Families
 -- ----------------------------------------------------------------------------
@@ -301,12 +312,12 @@ type family Constrain_Handler (h :: Handler Nat Symbol *) :: Constraint where
   Constrain_Handler (CaptureBody ctypes a h) = ((), Constrain_Handler h)
   Constrain_Handler (CaptureHeaders hspec h) = ((), Constrain_Handler h)
   Constrain_Handler (CaptureQuery qspec h) = ((), Constrain_Handler h)
-  Constrain_Handler (Method verb responses) = (SingI responses, Constrain_Alternatives responses)
+  Constrain_Handler (Method verb responses) = (SingI responses, Constrain_Outputs responses)
 
-type family Constrain_Alternatives (rs :: [Alternative Nat Symbol *]) :: Constraint where
-  Constrain_Alternatives '[] = ()
-  Constrain_Alternatives (Responding code htypes b ': responses) =
-    (SingI code, Constrain_Body b, HeaderS.HeaderEncodes htypes, Constrain_Alternatives responses)
+type family Constrain_Outputs (rs :: [ (StatusCode Nat, Output Symbol *) ]) :: Constraint where
+  Constrain_Outputs '[] = ()
+  Constrain_Outputs (code ::: Respond htypes b ': responses) =
+    (SingI code, Constrain_Body b, HeaderS.HeaderEncodes htypes, Constrain_Outputs responses)
 
 type family Constrain_Body (b :: Body *) :: Constraint where
   Constrain_Body Empty = ()

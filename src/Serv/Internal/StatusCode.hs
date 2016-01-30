@@ -16,10 +16,7 @@
 -- supported by name, although fully custom codes are generally supported.
 module Serv.Internal.StatusCode where
 
-import           Data.Singletons
 import           Data.Singletons.TH
-import           Data.Singletons.TypeLits
-import           GHC.TypeLits
 import qualified Network.HTTP.Types.Status as S
 
 singletons
@@ -152,6 +149,7 @@ type PreconditionRequired = 'PreconditionRequired
 type TooManyRequests = 'TooManyRequests
 type RequestHeaderFieldsTooLarge = 'RequestHeaderFieldsTooLarge
 type UnavailableForLegalReasons = 'UnavailableForLegalReasons
+type InternalServerError = 'InternalServerError
 type NotImplemented = 'NotImplemented
 type BadGateway = 'BadGateway
 type ServiceUnavailable = 'ServiceUnavailable

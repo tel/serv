@@ -35,13 +35,11 @@ type Empty = 'Empty
 
 singletons
   [d|
-    data Alternative nat symbol star where
-      Responding
-        :: StatusCode nat -> [ (HeaderType symbol, star) ] -> Body star
-        -> Responding nat symbol star
+    data Output symbol star where
+      Respond :: [ (HeaderType symbol, star) ] -> Body star -> Output symbol star
   |]
 
-type Responding code hdrs body = 'Responding code hdrs body
+type Respond hdrs body = 'Respond hdrs body
 
 -- | A 'Handler' is a single HTTP verb response handled at a given 'Endpoint'.
 -- In order to complete a 'Handler''s operation it may demand data from the
@@ -58,7 +56,7 @@ type Responding code hdrs body = 'Responding code hdrs body
 singletons
   [d|
     data Handler nat symbol star where
-      Method :: Verb -> [Alternative nat symbol star] -> Handler nat symbol star
+      Method :: Verb -> [ (StatusCode nat, Output symbol star) ] -> Handler nat symbol star
       CaptureBody :: [star] -> star -> Handler nat symbol star -> Handler nat symbol star
       CaptureHeaders :: [ (HeaderType symbol, star) ] -> Handler nat symbol star -> Handler nat symbol star
       CaptureQuery :: [ (symbol, star) ] -> Handler nat symbol star -> Handler nat symbol star

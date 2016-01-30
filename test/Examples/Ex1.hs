@@ -25,16 +25,13 @@ type JSONBody = HasBody '[ Ct.JSON ] [Int]
 type TheApi
   = Endpoint ()
     '[ Method GET
-       '[ Responding Sc.Ok
-          '[ 'H.CacheControl ::: RawText ] RawBody
+       '[ Sc.Ok ::: Respond '[ H.CacheControl ::: RawText ] RawBody
         ]
      , Method PUT
-       '[ Responding Sc.Ok
-          '[ 'H.CacheControl ::: RawText ] JSONBody
+       '[ Sc.Ok ::: Respond '[ H.CacheControl ::: RawText ] JSONBody
         ]
      , Method DELETE
-       '[ Responding Sc.InternalServerError
-          '[] RawBody
+       '[ Sc.InternalServerError ::: Respond '[] RawBody
         ]
      ]
 

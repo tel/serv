@@ -28,9 +28,9 @@ type TheApi
     Header H.IfRange (Maybe RawText) :>
     Endpoint ()
       '[ Method GET
-         '[ Responding Sc.Ok '[ H.XCsrfToken ::: RawText ] RawBody ]
+         '[ Sc.Ok ::: Respond '[ H.XCsrfToken ::: RawText ] RawBody ]
        , Method DELETE
-         '[ Responding Sc.NoContent '[] Empty ]
+         '[ Sc.NoContent ::: Respond '[] Empty ]
        ]
 
 apiProxy :: Sing TheApi

@@ -54,12 +54,12 @@ inspectHandler s =
     SMethod sVerb sResponses ->
       case sResponses of
         SNil -> mempty
-        SCons (SResponding _sCode sHdrs _sBody) sTail ->
+        SCons (STuple2 _sCode (SRespond sHdrs _sBody)) sRest ->
           EndpointAnalysis
           { verbsHandled = Set.singleton (fromSing sVerb)
           , headersEmitted = headerNames sHdrs
           , headersExpected = Set.empty
-          } <> inspectHandler (SMethod sVerb sTail)
+          } <> inspectHandler (SMethod sVerb sRest)
     SCaptureHeaders sHdrs sNext ->
       EndpointAnalysis
       { verbsHandled = Set.empty
