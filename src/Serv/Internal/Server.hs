@@ -173,12 +173,15 @@ handle sH impl = Server $
       case mayVerb of
         Nothing -> runServer notFoundS
         Just verbRequested
-          | verbRequested /= verbProvided ->
+          | verbRequested == HEAD -> do
+              someResponse <- lift impl
+              handleResponse False sAlts someResponse
+          | verbRequested == verbProvided -> do
+              someResponse <- lift impl
+              handleResponse True sAlts someResponse
+          | otherwise ->
               runServer notFoundS -- not methodNotAllowedS because we can't
                                   -- make that judgement locally.
-          | otherwise -> do
-              someResponse <- lift impl
-              handleResponse (verbRequested /= HEAD) sAlts someResponse
 
     -- TODO: These...
 
@@ -197,22 +200,22 @@ handleResponse includeBody (SCons _ sRest) (SkipResponse someResponse) =
 handleResponse includeBody (SCons (SResponding sStatus sHeaders sBody) _) (StandardResponse resp) =
   case (sBody, resp) of
     (SEmpty, EmptyResponse secretHeaders headers) ->
-      respondNoBody secretHeaders headers
+      respondNoBody (StatusCode.httpStatus (fromSing sStatus)) secretHeaders headers
     (SHasBody sCtypes sTy, ContentResponse secretHeaders headers a)
       | not includeBody -> do
-          respondNoBody secretHeaders headers
+          respondNoBody HTTP.ok200 secretHeaders headers
       | otherwise -> do
           respondBody secretHeaders headers sCtypes a
 
   where
     respondNoBody
       :: (HeaderS.HeaderEncodes hdrs, Monad m)
-      => [HTTP.Header] -> Rec hdrs -> InContext m ServerValue
-    respondNoBody secretHeaders headers =
+      => HTTP.Status -> [HTTP.Header] -> Rec hdrs -> InContext m ServerValue
+    respondNoBody status secretHeaders headers =
       return
         $ WaiResponse
         $ Wai.responseLBS
-            (StatusCode.httpStatus (fromSing sStatus))
+            status
             (secretHeaders ++ HeaderS.encodeHeaders headers)
             ""
 

@@ -45,9 +45,15 @@ data SomeResponse (alts :: [Alternative Nat Symbol *]) where
 class ValidResponse alts status headers body where
   injectResponse :: Response status headers body -> SomeResponse alts
 
+-- Here we lift headers and body matching up into type equalities instead
+-- of trying to dispatch them immediately. This is very intentional!
+-- Without this we'll fail to match this instance as often as we like since
+-- when body or headers are ambiguous the instance matching will miss. By
+-- promoting them to equalities we will find the instances based off the
+-- status, as desired, then try to unify the other two later.
 instance
-    {-# OVERLAPS #-} ValidResponse
-    (Responding status headers body ': alts) status headers body where
+    {-# OVERLAPS #-} (headers' ~ headers, body' ~ body) => ValidResponse
+    (Responding status headers' body' ': alts) status headers body where
   injectResponse = StandardResponse
 
 instance

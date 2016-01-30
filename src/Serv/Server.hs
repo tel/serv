@@ -31,7 +31,6 @@ module Serv.Server (
     , Response
     , respond
     , emptyResponse
-    , errorResponse
     , withBody
     , withHeader
     , withQuietHeader

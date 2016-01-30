@@ -7,18 +7,19 @@
 -- example.com is an acceptable Origin and that authorization IS allowed.
 module Examples.Ex2 where
 
-import           Data.Function    ((&))
-import           Data.Text        (Text)
-import qualified Network.Wai      as Wai
-import qualified Network.Wai.Test as T
+import           Data.Function            ((&))
+import           Data.Text                (Text)
+import qualified Network.Wai              as Wai
+import qualified Network.Wai.Test         as T
 import           Serv.Api
 import           Serv.Common
-import qualified Serv.ContentType as Ct
-import qualified Serv.Cors        as Cors
-import qualified Serv.Header      as H
+import qualified Serv.ContentType         as Ct
+import qualified Serv.Cors                as Cors
+import qualified Serv.Header              as H
+import qualified Serv.Internal.StatusCode as Sc
 import           Serv.Server
 import           Test.Tasty
-import qualified Test.Tasty.HUnit as Hu
+import qualified Test.Tasty.HUnit         as Hu
 
 type RawBody = HasBody '[ Ct.TextPlain ] Text
 
@@ -26,8 +27,10 @@ type TheApi
   = Cors Cors.PermitAll :>
     Header H.IfRange (Maybe RawText) :>
     Endpoint ()
-      '[ Method GET '[ H.XCsrfToken ::: RawText ] RawBody
-       , Method DELETE '[] Empty
+      '[ Method GET
+         '[ Responding Sc.Ok '[ H.XCsrfToken ::: RawText ] RawBody ]
+       , Method DELETE
+         '[ Responding Sc.NoContent '[] Empty ]
        ]
 
 apiProxy :: Sing TheApi
@@ -38,12 +41,12 @@ impl _ifRange = get :<|> delete :<|> MethodNotAllowed
   where
     get =
       respond
-      $ emptyResponse ok200
-      & withHeader H.SXCsrfToken "some-csrf-token"
+      $ emptyResponse Sc.SOk
+      & withHeader H.SXCsrfToken (RawText "some-csrf-token")
       & withBody "Hello"
     delete =
       respond
-      $ emptyResponse noContent204
+      $ emptyResponse Sc.SNoContent
 
 theServer :: Server IO
 theServer = server apiProxy impl
