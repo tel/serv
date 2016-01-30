@@ -42,7 +42,7 @@ impl _ifRange = get :<|> delete :<|> MethodNotAllowed
     get =
       respond
       $ emptyResponse Sc.SOk
-      & withHeader H.SXCsrfToken (RawText "some-csrf-token")
+      & withHeader H.SXCsrfToken "some-csrf-token"
       & withBody "Hello"
     delete =
       respond
