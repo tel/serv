@@ -208,7 +208,7 @@ handleResponse
 
   case (sBody, resp) of
     (SEmpty, EmptyResponse secretHeaders headers) ->
-      respondNoBody (StatusCode.httpStatus (fromSing sStatus)) secretHeaders headers
+      respondNoBody (StatusCode.httpStatus sStatus) secretHeaders headers
     (SHasBody sCtypes _sTy, ContentResponse secretHeaders headers a)
       | not includeBody -> do
           respondNoBody HTTP.ok200 secretHeaders headers
@@ -244,7 +244,7 @@ handleResponse
           return
             $ WaiResponse
             $ Wai.responseLBS
-                (StatusCode.httpStatus (fromSing sStatus))
+                (StatusCode.httpStatus sStatus)
                 ( newHeaders
                   ++ secretHeaders
                   ++ HeaderS.encodeHeaders headers
