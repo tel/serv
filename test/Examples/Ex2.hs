@@ -16,7 +16,7 @@ import           Serv.Common
 import qualified Serv.ContentType         as Ct
 import qualified Serv.Cors                as Cors
 import qualified Serv.Header              as H
-import qualified Serv.Internal.StatusCode as Sc
+import qualified Serv.StatusCode as Sc
 import           Serv.Server
 import           Test.Tasty
 import qualified Test.Tasty.HUnit         as Hu
