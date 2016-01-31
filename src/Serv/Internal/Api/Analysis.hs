@@ -40,23 +40,26 @@ instance Monoid EndpointAnalysis where
     , headersEmitted = headersEmitted ea <> headersEmitted eb
     }
 
-inspectEndpoint :: forall (hs :: [Handler Symbol *]) . Sing hs -> EndpointAnalysis
+inspectEndpoint :: forall (hs :: [Handler Nat Symbol *]) . Sing hs -> EndpointAnalysis
 inspectEndpoint s =
   case s of
     SNil -> mempty
     SCons sHandler sRest -> inspectHandler sHandler <> inspectEndpoint sRest
 
-inspectHandler :: forall (h :: Handler Symbol *) . Sing h -> EndpointAnalysis
+inspectHandler :: forall (h :: Handler Nat Symbol *) . Sing h -> EndpointAnalysis
 inspectHandler s =
   case s of
     SCaptureQuery _ sNext -> inspectHandler sNext
     SCaptureBody _ _ sNext -> inspectHandler sNext
-    SMethod sVerb sHdrs _sBody ->
-      EndpointAnalysis
-      { verbsHandled = Set.singleton (fromSing sVerb)
-      , headersEmitted = headerNames sHdrs
-      , headersExpected = Set.empty
-      }
+    SMethod sVerb sResponses ->
+      case sResponses of
+        SNil -> mempty
+        SCons (STuple2 _sCode (SRespond sHdrs _sBody)) sRest ->
+          EndpointAnalysis
+          { verbsHandled = Set.singleton (fromSing sVerb)
+          , headersEmitted = headerNames sHdrs
+          , headersExpected = Set.empty
+          } <> inspectHandler (SMethod sVerb sRest)
     SCaptureHeaders sHdrs sNext ->
       EndpointAnalysis
       { verbsHandled = Set.empty
@@ -72,8 +75,8 @@ headerNames s =
     SCons (STuple2 sHt _sTy) sRest ->
       Set.insert (Header.headerType sHt) (headerNames sRest)
 
-inspectVerbs :: forall (hs :: [Handler Symbol *]) . Sing hs -> Set Verb
+inspectVerbs :: forall (hs :: [Handler Nat Symbol *]) . Sing hs -> Set Verb
 inspectVerbs = verbsHandled . inspectEndpoint
 
-headersExpectedOf :: forall (hs :: [Handler Symbol *]) . Sing hs -> Set (HeaderType Text)
+headersExpectedOf :: forall (hs :: [Handler Nat Symbol *]) . Sing hs -> Set (HeaderType Text)
 headersExpectedOf = headersExpected . inspectEndpoint

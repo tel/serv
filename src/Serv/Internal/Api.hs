@@ -14,6 +14,7 @@ module Serv.Internal.Api where
 
 import           Data.Singletons.TH
 import           Serv.Internal.Header (HeaderType)
+import           Serv.Internal.StatusCode (StatusCode)
 import           Serv.Internal.Verb
 
 -- | 'Handler' responses may opt to include a response body or not.
@@ -32,6 +33,14 @@ singletons
 type HasBody ctypes ty = 'HasBody ctypes ty
 type Empty = 'Empty
 
+singletons
+  [d|
+    data Output symbol star where
+      Respond :: [ (HeaderType symbol, star) ] -> Body star -> Output symbol star
+  |]
+
+type Respond hdrs body = 'Respond hdrs body
+
 -- | A 'Handler' is a single HTTP verb response handled at a given 'Endpoint'.
 -- In order to complete a 'Handler''s operation it may demand data from the
 -- request such as headers or the request body.
@@ -46,14 +55,14 @@ type Empty = 'Empty
 --
 singletons
   [d|
-    data Handler symbol star where
-      Method :: Verb -> [ (HeaderType symbol, star) ] -> Body star -> Handler symbol star
-      CaptureBody :: [star] -> star -> Handler symbol star -> Handler symbol star
-      CaptureHeaders :: [ (HeaderType symbol, star) ] -> Handler symbol star -> Handler symbol star
-      CaptureQuery :: [ (symbol, star) ] -> Handler symbol star -> Handler symbol star
+    data Handler nat symbol star where
+      Method :: Verb -> [ (StatusCode nat, Output symbol star) ] -> Handler nat symbol star
+      CaptureBody :: [star] -> star -> Handler nat symbol star -> Handler nat symbol star
+      CaptureHeaders :: [ (HeaderType symbol, star) ] -> Handler nat symbol star -> Handler nat symbol star
+      CaptureQuery :: [ (symbol, star) ] -> Handler nat symbol star -> Handler nat symbol star
   |]
 
-type Method verb responseHeaders body = 'Method verb responseHeaders body
+type Method verb responses = 'Method verb responses
 type CaptureBody cTypes ty method = 'CaptureBody cTypes ty method
 type CaptureHeaders hdrs method = 'CaptureHeaders hdrs method
 type CaptureQuery query method = 'CaptureQuery query method
@@ -115,11 +124,11 @@ type Cors ty = 'Cors ty
 
 singletons
   [d|
-    data Api symbol star where
-      Endpoint :: star -> [Handler symbol star] -> Api symbol star
-      OneOf :: [Api symbol star] -> Api symbol star
-      Raw :: Api symbol star
-      (:>) :: Path symbol star -> Api symbol star -> Api symbol star
+    data Api nat symbol star where
+      Endpoint :: star -> [Handler nat symbol star] -> Api nat symbol star
+      OneOf :: [Api nat symbol star] -> Api nat symbol star
+      Raw :: Api nat symbol star
+      (:>) :: Path symbol star -> Api nat symbol star -> Api nat symbol star
   |]
 
 type Endpoint ann ms = 'Endpoint ann ms

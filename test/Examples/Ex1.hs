@@ -5,27 +5,37 @@
 
 module Examples.Ex1 where
 
-import           Data.Function    ((&))
+import           Data.Function            ((&))
 import           Data.String
-import           Data.Text        (Text)
-import qualified Network.Wai      as Wai
-import qualified Network.Wai.Test as T
+import           Data.Text                (Text)
+import qualified Network.Wai              as Wai
+import qualified Network.Wai.Test         as T
 import           Serv.Api
 import           Serv.Common
-import qualified Serv.ContentType as Ct
-import qualified Serv.Header      as H
+import qualified Serv.ContentType         as Ct
+import qualified Serv.Header              as H
+import qualified Serv.Internal.StatusCode as Sc
 import           Serv.Server
 import           Test.Tasty
-import qualified Test.Tasty.HUnit as Hu
+import qualified Test.Tasty.HUnit         as Hu
 
 type RawBody = HasBody '[ Ct.TextPlain ] Text
 type JSONBody = HasBody '[ Ct.JSON ] [Int]
 
 type TheApi
   = Endpoint ()
-    '[ Method GET '[ 'H.CacheControl ::: RawText ] RawBody
-     , Method PUT '[ 'H.CacheControl ::: RawText ] JSONBody
-     , Method DELETE '[] Empty
+    '[ Method GET
+       '[ Sc.Ok :::
+          Respond '[ H.CacheControl ::: RawText ] RawBody
+        ]
+     , Method PUT
+       '[ Sc.Ok :::
+          Respond '[ H.CacheControl ::: RawText ] JSONBody
+        ]
+     , Method DELETE
+       '[ Sc.InternalServerError :::
+          Respond '[] RawBody
+        ]
      ]
 
 apiSing :: Sing TheApi
@@ -36,17 +46,18 @@ impl = get :<|> put :<|> delete :<|> MethodNotAllowed
   where
     get =
       respond
-      $ emptyResponse ok200
+      $ emptyResponse Sc.SOk
       & withHeader H.SCacheControl "foo"
       & withBody "Hello"
     put =
       respond
-      $ emptyResponse ok200
+      $ emptyResponse Sc.SOk
       & withHeader H.SCacheControl "foo"
       & withBody [1, 2, 3]
     delete =
       respond
-      $ errorResponse status500 [] (Just "Server error")
+      $ emptyResponse Sc.SInternalServerError
+      & withBody "Server error"
 
 
 theServer :: Server IO

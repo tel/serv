@@ -9,6 +9,8 @@ module Serv.Api (
 
   , Handler (..)
   , Method, CaptureBody, CaptureHeaders, CaptureQuery
+  , Output (..)
+  , Respond
 
   , Body (..)
   , HasBody, Empty

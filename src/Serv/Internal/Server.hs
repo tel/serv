@@ -31,10 +31,13 @@ import           Serv.Internal.Cors                 as Cors
 import qualified Serv.Internal.Header               as Header
 import qualified Serv.Internal.Header.Serialization as HeaderS
 import           Serv.Internal.MediaType
+import           Serv.Internal.Pair
 import           Serv.Internal.Rec
 import           Serv.Internal.Server.Monad
 import           Serv.Internal.Server.Response
 import           Serv.Internal.Server.Type
+import           Serv.Internal.StatusCode           (StatusCode)
+import qualified Serv.Internal.StatusCode           as StatusCode
 import qualified Serv.Internal.URI                  as URI
 import           Serv.Internal.Verb
 
@@ -166,22 +169,21 @@ handles verbs (SCons sHandler sRest) (handler :<|> implRest) =
 handle :: (Constrain_Handler h, Monad m) => Sing h -> Impl_Handler m h -> Server m
 handle sH impl = Server $
   case sH of
-    SMethod sVerb _sHdrs sBody -> do
+    SMethod sVerb sAlts -> do
       mayVerb <- getVerb
-      case (mayVerb, fromSing sVerb) of
-        (Nothing, _) ->
-          runServer notFoundS
-
-        (Just HEAD, GET) -> do
-          AResponse resp <- lift impl
-          handleResponse SEmpty (deleteBody resp)
-
-        (Just req, have)
-          | req /= have ->
-              runServer notFoundS
-          | otherwise -> do
-              AResponse resp <- lift impl
-              handleResponse sBody resp
+      let verbProvided = fromSing sVerb
+      case mayVerb of
+        Nothing -> runServer notFoundS
+        Just verbRequested
+          | verbRequested == HEAD -> do
+              someResponse <- lift impl
+              handleResponse False sAlts someResponse
+          | verbRequested == verbProvided -> do
+              someResponse <- lift impl
+              handleResponse True sAlts someResponse
+          | otherwise ->
+              runServer notFoundS -- not methodNotAllowedS because we can't
+                                  -- make that judgement locally.
 
     -- TODO: These...
 
@@ -193,25 +195,43 @@ handle sH impl = Server $
       undefined -- runServer (handle sH' (impl _))
 
 handleResponse
-  :: (HeaderS.HeaderEncodes htypes, Constrain_Body b, Monad m)
-  => Sing b -> Response e htypes b -> InContext m ServerValue
-handleResponse s resp =
-  case (s, resp) of
-    (_, ErrorResponse status headers body) ->
-      return
-        $ WaiResponse
-        $ Wai.responseLBS
-            status
-            headers
-            (maybe "" id body)
-    (SEmpty, EmptyResponse status secretHeaders headers) ->
+  :: (Constrain_Outputs alts, Monad m)
+  => Bool -> Sing alts -> SomeResponse alts -> InContext m ServerValue
+
+handleResponse includeBody (SCons _ sRest) (SkipResponse someResponse) =
+  handleResponse includeBody sRest someResponse
+
+handleResponse
+  includeBody
+  (SCons (STuple2 sStatus (SRespond _sHeaders sBody)) _)
+  (StandardResponse resp) =
+
+  case (sBody, resp) of
+    (SEmpty, EmptyResponse secretHeaders headers) ->
+      respondNoBody (StatusCode.httpStatus (fromSing sStatus)) secretHeaders headers
+    (SHasBody sCtypes _sTy, ContentResponse secretHeaders headers a)
+      | not includeBody -> do
+          respondNoBody HTTP.ok200 secretHeaders headers
+      | otherwise -> do
+          respondBody secretHeaders headers sCtypes a
+    _ -> bugInGHC
+
+  where
+    respondNoBody
+      :: (HeaderS.HeaderEncodes hdrs, Monad m)
+      => HTTP.Status -> [HTTP.Header] -> Rec hdrs -> InContext m ServerValue
+    respondNoBody status secretHeaders headers =
       return
         $ WaiResponse
         $ Wai.responseLBS
             status
             (secretHeaders ++ HeaderS.encodeHeaders headers)
             ""
-    (SHasBody sCtypes _sTy, Response status secretHeaders headers a) -> do
+
+    respondBody
+      :: (Constrain_Body (HasBody ctypes a), HeaderS.HeaderEncodes hdrs, Monad m)
+      => [HTTP.Header] -> Rec hdrs -> Sing ctypes -> a -> InContext m ServerValue
+    respondBody secretHeaders headers sCtypes a = do
       accepts <- examineHeader Header.SAccept
       case negotiateContentAlways sCtypes (either (const []) id accepts) a of
         Nothing ->
@@ -224,13 +244,14 @@ handleResponse s resp =
           return
             $ WaiResponse
             $ Wai.responseLBS
-                status
+                (StatusCode.httpStatus (fromSing sStatus))
                 ( newHeaders
                   ++ secretHeaders
                   ++ HeaderS.encodeHeaders headers
                 )
                 (Sl.fromStrict body)
-    _ -> bugInGHC
+
+handleResponse _ _ _ = bugInGHC
 
 -- Type Families
 -- ----------------------------------------------------------------------------
@@ -243,18 +264,18 @@ handleResponse s resp =
 -- Beyond 'Impl' there are also four constituent type families; 3 describe
 -- the implementation types for each `Api` constructor and the last
 -- describes the specific implmentation type for the 'Handler' kind.
-type family Impl (m :: * -> *) (a :: Api Symbol *) :: * where
+type family Impl (m :: * -> *) (a :: Api Nat Symbol *) :: * where
   Impl m Raw = m Wai.Application
   Impl m (OneOf apis) = Impl_OneOf m apis
   Impl m (Endpoint ann hs) = Impl_Endpoint m hs
   Impl m (p :> a) = Impl_Path m p (Impl m a)
 
-type family Impl_Endpoint (m :: * -> *) (hs :: [Handler Symbol *]) :: * where
+type family Impl_Endpoint (m :: * -> *) (hs :: [Handler Nat Symbol *]) :: * where
   Impl_Endpoint m '[] = MethodNotAllowed
   Impl_Endpoint m (h ': hs) =
     Impl_Handler m h :<|> Impl_Endpoint m hs
 
-type family Impl_OneOf (m :: * -> *) (as :: [Api Symbol *]) :: * where
+type family Impl_OneOf (m :: * -> *) (as :: [Api Nat Symbol *]) :: * where
   Impl_OneOf m '[] = NotFound
   Impl_OneOf m (a ': as) =
     Impl m a :<|> Impl_OneOf m as
@@ -267,31 +288,36 @@ type family Impl_Path (m :: * -> *) (p :: Path Symbol *) (r :: *) :: * where
   Impl_Path m Wildcard next = [Text] -> next
   Impl_Path m (Cors ty) next = next
 
-type family Impl_Handler (m :: * -> *) (h :: Handler Symbol *) :: * where
+type family Impl_Handler (m :: * -> *) (h :: Handler Nat Symbol *) :: * where
   Impl_Handler m (CaptureBody ctypes a h) = a -> Impl_Handler m h
   Impl_Handler m (CaptureHeaders hspec h) = Rec hspec -> Impl_Handler m h
   Impl_Handler m (CaptureQuery qspec h) = Rec qspec -> Impl_Handler m h
-  Impl_Handler m (Method verb htypes body) = m (AResponse htypes body)
+  Impl_Handler m (Method verb alts) = m (SomeResponse alts)
 
-type family Constrain (a :: Api Symbol *) :: Constraint where
+type family Constrain (a :: Api Nat Symbol *) :: Constraint where
   Constrain Raw = ()
   Constrain (Endpoint ann hs) = Constrain_Endpoint hs
   Constrain (OneOf apis) = Constrain_OneOf apis
   Constrain (p :> a) = (Constrain_Path p, Constrain a)
 
-type family Constrain_OneOf (as :: [Api Symbol *]) :: Constraint where
+type family Constrain_OneOf (as :: [Api Nat Symbol *]) :: Constraint where
   Constrain_OneOf '[] = ()
   Constrain_OneOf (a ': as) = (Constrain a, Constrain_OneOf as)
 
-type family Constrain_Endpoint (hs :: [Handler Symbol *]) :: Constraint where
+type family Constrain_Endpoint (hs :: [Handler Nat Symbol *]) :: Constraint where
   Constrain_Endpoint '[] = ()
   Constrain_Endpoint (h ': hs) = (Constrain_Handler h, Constrain_Endpoint hs)
 
-type family Constrain_Handler (h :: Handler Symbol *) :: Constraint where
+type family Constrain_Handler (h :: Handler Nat Symbol *) :: Constraint where
   Constrain_Handler (CaptureBody ctypes a h) = ((), Constrain_Handler h)
   Constrain_Handler (CaptureHeaders hspec h) = ((), Constrain_Handler h)
   Constrain_Handler (CaptureQuery qspec h) = ((), Constrain_Handler h)
-  Constrain_Handler (Method verb htypes b) = (Constrain_Body b, HeaderS.HeaderEncodes htypes)
+  Constrain_Handler (Method verb responses) = (SingI responses, Constrain_Outputs responses)
+
+type family Constrain_Outputs (rs :: [ (StatusCode Nat, Output Symbol *) ]) :: Constraint where
+  Constrain_Outputs '[] = ()
+  Constrain_Outputs (code ::: Respond htypes b ': responses) =
+    (SingI code, Constrain_Body b, HeaderS.HeaderEncodes htypes, Constrain_Outputs responses)
 
 type family Constrain_Body (b :: Body *) :: Constraint where
   Constrain_Body Empty = ()
