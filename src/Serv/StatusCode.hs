@@ -18,12 +18,14 @@ module Serv.StatusCode (
     , SResetContent
     , SPartialContent
     , SIMUsed
+    , SMultipleChoices
     , SMovedPermanently
     , SFound
     , SSeeOther
     , SNotModified
     , STemporaryRedirect
     , SPermanentRedirect
+    , SBadRequest
     , SUnauthorized
     , SPaymentRequired
     , SForbidden
@@ -50,6 +52,7 @@ module Serv.StatusCode (
     , STooManyRequests
     , SRequestHeaderFieldsTooLarge
     , SUnavailableForLegalReasons
+    , SInternalServerError
     , SNotImplemented
     , SBadGateway
     , SServiceUnavailable
@@ -75,12 +78,14 @@ module Serv.StatusCode (
     , ResetContent
     , PartialContent
     , IMUsed
+    , MultipleChoices
     , MovedPermanently
     , Found
     , SeeOther
     , NotModified
     , TemporaryRedirect
     , PermanentRedirect
+    , BadRequest
     , Unauthorized
     , PaymentRequired
     , Forbidden
@@ -107,6 +112,7 @@ module Serv.StatusCode (
     , TooManyRequests
     , RequestHeaderFieldsTooLarge
     , UnavailableForLegalReasons
+    , InternalServerError
     , NotImplemented
     , BadGateway
     , ServiceUnavailable

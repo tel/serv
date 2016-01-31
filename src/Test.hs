@@ -6,13 +6,17 @@
 {-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
 module Test where
 
-import GHC.Exts
+import           Data.Singletons
+import           Data.Singletons.TH
+import           Data.Singletons.TypeLits
+import           GHC.Exts
 
 data Corec :: [*] -> * where
   Here :: a -> Corec (a ': as)
