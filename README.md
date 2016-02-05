@@ -104,7 +104,7 @@ types `'GET`, `'PUT`, `'DELETE`, etc. which all have *kind* `Verb`. Serv uses
 `DataKinds` extensively to enable kind-safe type-level programming in the same
 way that Haskell normally enables type-safe value-level programming.
 
-Above, `AMethod` is a type describing a single method, a `DELETE` method which
+Above, `Method_1` is a type describing a single method, a `DELETE` method which
 produces an empty response with no special headers. We use a type-level list
 `'[]` to describe the set of headers returned.
 
