@@ -199,23 +199,28 @@ type `Impl api m` for the particular `Api` type we have. We can use GHCi's kind
 evaluator to see what `Impl Api_All IO` looks like:
 
 ```haskell
-> :kind Impl Api_All IO
-Impl Api_All IO :: *
-= (IO (Response '[] 'Empty)
-   :<|> (IO (Response '['H.Location '::: RawText] 'Empty)
-         :<|> (IO (Response '[] ('Body '[Ct.TextPlain] Text))
-               :<|> IO NotHere)))
+> :kind! Impl IO Api_All
+Impl IO Api_All :: *
+= (IO (SomeResponse '[Ok ::: Respond '[] Empty])
+   :<|> (IO
+           (SomeResponse '[Ok ::: Respond '[Location ::: RawText] Empty])
+         :<|> (IO (SomeResponse '[Ok ::: Respond '[] RawBody])
+               :<|> Serv.Internal.Server.Type.MethodNotAllowed)))
   :<|> ((Tagged "user_id" Int
-         -> IO (Response '[] 'Empty)
-            :<|> (IO (Response '['H.Location '::: RawText] 'Empty)
-                  :<|> (IO (Response '[] ('Body '[Ct.TextPlain] Text))
-                        :<|> IO NotHere)))
+         -> IO (SomeResponse '[Ok ::: Respond '[] Empty])
+            :<|> (IO
+                    (SomeResponse '[Ok ::: Respond '[Location ::: RawText] Empty])
+                  :<|> (IO (SomeResponse '[Ok ::: Respond '[] RawBody])
+                        :<|> Serv.Internal.Server.Type.MethodNotAllowed)))
         :<|> (([Text]
-               -> IO (Response '[] 'Empty)
-                  :<|> (IO (Response '['H.Location '::: RawText] 'Empty)
-                        :<|> (IO (Response '[] ('Body '[Ct.TextPlain] Text))
-                              :<|> IO NotHere)))
+               -> IO (SomeResponse '[Ok ::: Respond '[] Empty])
+                  :<|> (IO
+                          (SomeResponse '[Ok ::: Respond '[Location ::: RawText] Empty])
+                        :<|> (IO (SomeResponse '[Ok ::: Respond '[] RawBody])
+                              :<|> Serv.Internal.Server.Type.MethodNotAllowed)))
+              :<|> Serv.Internal.Server.Type.NotFound))
               :<|> IO NotHere))
+
 ```
 
 Ugly! But regular! Taking a closer look we can note what's going on here.
@@ -228,11 +233,11 @@ the fact that we hit the same Endpoint definition three times. Let's refactor by
 finding the kind of `Impl Endpoint_1 IO`
 
 ```haskell
-type Impl_Endpoint =
-       IO (Response '[] 'Empty)
-  :<|> IO (Response '['H.Location '::: RawText] 'Empty)
-  :<|> IO (Response '[] ('Body '[Ct.TextPlain] Text))
-  :<|> IO NotHere
+type Impl_Endpoint_ = 
+       IO (Response Sc.Ok '[] Empty)
+  :<|> IO (Response Sc.Ok '[ H.Location ::: RawText ] Empty)
+  :<|> IO (Response Sc.Ok '[] RawBody)
+  :<|> IO NotFound
 ```
 
 Here we see that we have one `IO (Response ...)` for each method at our
@@ -244,10 +249,10 @@ With this defined, we can give a fast type to `Impl Api_All IO`
 
 ```haskell
 type Impl_All =
-       Impl_Endpoint
-  :<|> Tagged "user_id" Int -> Impl_Endpoint
-  :<|> [Text] -> Impl_Endpoint
-  :<|> IO NotHere
+       Impl_Endpoint_
+  :<|> Tagged "user_id" Int -> Impl_Endpoint_
+  :<|> [Text] -> Impl_Endpoint_
+  :<|> IO NotFound
 ```
 
 Which lets us more easily see the pattern. Again, we see distinct server choices
