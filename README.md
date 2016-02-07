@@ -97,7 +97,7 @@ instance, a simple API might look like
 import Serv.Api
 import qualified Serv.StatusCode as Sc
 
-type Method_1 = Method DELETE '[ Sc.Ok ::: Respond '[] Empty]
+type Method_1 = Method DELETE '[ Sc.Ok ::: Respond '[] Empty ]
 ```
 
 where the single-quotes indicate that we are using a data constructor at the
@@ -163,13 +163,13 @@ The simplest path augmentation is to add a constant path segment in front of an
 endpoint
 
 ```haskell
-type Api_1 = 'Const "users" ':> Endpoint_1
+type Api_1 = Const "users" :> Endpoint_1
 ```
 
 other path augmentations include *capture* of a particular segment
 
 ```haskell
-type Api_2 = 'Const "users" ':> 'Seg "user_id" Int ':> Endpoint_1
+type Api_2 = Const "users" :> Seg "user_id" Int :> Endpoint_1
 ```
 
 where we interpret the path segment as an `Int` or fail to match this path. We
@@ -178,15 +178,15 @@ know how to interpret segments as `Int`s due to instances of
 with a *wildcard*
 
 ```haskell
-type Api_3 = 'Wildcard :> Endpoint_1
+type Api_3 = Wildcard :> Endpoint_1
 ```
 
 Given a number of path-augmented `'Endpoint`s we'd like to glue these together
 into a set of options which is done using `'OneOf`
 
 ```haskell
-type Api_All =   'Const "api"
-             ':> 'OneOf '[ Api_1, Api_2, Api_3 ]
+type Api_All =  Const "api"
+             :> OneOf '[ Api_1, Api_2, Api_3 ]
 ```
 
 and from these pieces we can construct API matching trees of whatever shape we
