@@ -110,6 +110,10 @@ produces an empty response with no special headers. We use a type-level list
 Another method might return a particular header:
 
 ```haskell
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PolyKinds         #-}
+{-# LANGUAGE TypeOperators     #-}
 import           Serv.Common (RawText)
 import qualified Serv.Header as H
 
