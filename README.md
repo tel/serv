@@ -90,11 +90,10 @@ listing the `Method`s they respond to. To do this, we define a set of types. For
 instance, a simple API might look like
 
 ```haskell
-{-# LANGUAGE DataKinds, TypeOperators #-}
-
 import Serv.Api
+import qualified Serv.StatusCode as Sc
 
-type Method_1 = 'Method 'DELETE '[] 'Empty
+type Method_1 = Method DELETE '[ Sc.Ok ::: Respond '[] Empty]
 ```
 
 where the single-quotes indicate that we are using a data constructor at the
@@ -104,7 +103,7 @@ types `'GET`, `'PUT`, `'DELETE`, etc. which all have *kind* `Verb`. Serv uses
 `DataKinds` extensively to enable kind-safe type-level programming in the same
 way that Haskell normally enables type-safe value-level programming.
 
-Above, `AMethod` is a type describing a single method, a `DELETE` method which
+Above, `Method_1` is a type describing a single method, a `DELETE` method which
 produces an empty response with no special headers. We use a type-level list
 `'[]` to describe the set of headers returned.
 
@@ -114,7 +113,8 @@ Another method might return a particular header:
 import           Serv.Common (RawText)
 import qualified Serv.Header as H
 
-type Method_2 = 'Method 'POST '[ 'H.Location '::: RawText ] 'Empty
+type Method_2 = Method POST 
+                '[ Sc.Ok ::: Respond '[ H.Location ::: RawText ] Empty ]
 ```
 
 Here, `Method_2` must return the `Location` header specified by some `RawText`
@@ -132,7 +132,9 @@ far, `Method_1` and `Method_2` returned `'Empty` bodies, but we can fix that.
 import           Data.Text (Text)
 import qualified Serv.ContentType as Ct
 
-type Method_3 = 'Method 'GET '[] ('Body '[ Ct.TextPlain ] Text)
+type RawBody = HasBody '[ Ct.TextPlain ] Text
+
+type Method_3 = Method GET '[ Sc.Ok ::: Respond '[] RawBody ]
 ```
 
 To specify a body we use the type `'Body ctypes bodyType` which specifies a type
@@ -146,7 +148,7 @@ content type which has semantics for `Text` as there is an instance for
 A collection of methods forms an `Endpoint`
 
 ```haskell
-type Endpoint_1 = 'Endpoint '[ Method_1, Method_2, Method_3 ]
+type Endpoint_1 = Endpoint () '[ Method_1, Method_2, Method_3 ]
 ```
 
 and Serv ensures that `'Endpoint`s always arise as lists of `'Method`s. We embed
