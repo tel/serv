@@ -90,6 +90,10 @@ listing the `Method`s they respond to. To do this, we define a set of types. For
 instance, a simple API might look like
 
 ```haskell
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PolyKinds         #-}
+{-# LANGUAGE TypeOperators     #-}
 import Serv.Api
 import qualified Serv.StatusCode as Sc
 
@@ -110,10 +114,6 @@ produces an empty response with no special headers. We use a type-level list
 Another method might return a particular header:
 
 ```haskell
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PolyKinds         #-}
-{-# LANGUAGE TypeOperators     #-}
 import           Serv.Common (RawText)
 import qualified Serv.Header as H
 
