@@ -40,7 +40,7 @@ testDecodeDecimal p =
         (uriDecode (Text.pack text))
     testNoParse text =
       case uriDecode (Text.pack text) of
-        Left err -> assert True
+        Left _err -> assert True
         Right v ->
           assertFailure
             ("successfully parsed bad value: " ++ text ++ " as " ++ show (v `asProxyTypeOf` p))
