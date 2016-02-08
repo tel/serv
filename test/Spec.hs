@@ -7,6 +7,7 @@ import           Test.Tasty.Runners.AntXML    (antXMLRunner)
 import           Test.HUnit
 import qualified Examples.Ex1 as Ex1
 import qualified Examples.Ex2 as Ex2
+import qualified Test.Serv.URI as URI
 
 main :: IO ()
 main =
@@ -20,6 +21,7 @@ tests :: TestTree
 tests =
   testGroup "Server Tests"
   [ systemTests
+  , URI.tests
   , Ex1.tests
   , Ex2.tests
   ]
