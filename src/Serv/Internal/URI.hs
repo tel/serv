@@ -1,8 +1,10 @@
 
 module Serv.Internal.URI where
 
+import Control.Monad (liftM)
 import qualified Data.ByteString.Char8 as S8
 import           Data.Text             (Text)
+import           Data.Text.Read
 import qualified Data.Text.Encoding    as Enc
 import           Serv.Internal.RawText
 
@@ -26,3 +28,5 @@ fromByteString s = case Enc.decodeUtf8' s of
 instance URIDecode RawText where
   uriDecode text = Right (RawText text)
 
+instance URIDecode Int where
+  uriDecode = liftM fst . decimal
