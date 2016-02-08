@@ -97,7 +97,7 @@ instance, a simple API might look like
 import Serv.Api
 import qualified Serv.StatusCode as Sc
 
-type Method_1 = Method DELETE '[ Sc.Ok ::: Respond '[] Empty ]
+type Method_1 = Method DELETE '[ Sc.NoContent ::: Respond '[] Empty ]
 ```
 
 where the single-quotes indicate that we are using a data constructor at the
@@ -118,7 +118,7 @@ import           Serv.Common (RawText)
 import qualified Serv.Header as H
 
 type Method_2 = Method POST 
-                '[ Sc.Ok ::: Respond '[ H.Location ::: RawText ] Empty ]
+                '[ Sc.NoContent ::: Respond '[ H.Location ::: RawText ] Empty ]
 ```
 
 Here, `Method_2` must return the `Location` header specified by some `RawText`
@@ -138,7 +138,7 @@ import qualified Serv.ContentType as Ct
 
 type RawBody = HasBody '[ Ct.TextPlain ] Text
 
-type Method_3 = Method GET '[ Sc.Ok ::: Respond '[] RawBody ]
+type Method_3 = Method GET '[ Sc.NoContent ::: Respond '[] RawBody ]
 ```
 
 To specify a body we use the type `'Body ctypes bodyType` which specifies a type
@@ -248,11 +248,24 @@ automatic `404 Not Found` error.
 With this defined, we can give a fast type to `Impl Api_All IO`
 
 ```haskell
-type Impl_All =
-       Impl_Endpoint_
-  :<|> Tagged "user_id" Int -> Impl_Endpoint_
-  :<|> [Text] -> Impl_Endpoint_
-  :<|> IO NotFound
+impl_all :: Impl IO Api_All
+impl_all = impl_1 :<|> impl_2 :<|> impl_3 :<|> NotFound
+  where
+    impl_1 = delete :<|> post :<|> get :<|> MethodNotAllowed
+    impl_2 _ = delete :<|> post :<|> get :<|> MethodNotAllowed
+    impl_3 _ = delete :<|> post :<|> get :<|> MethodNotAllowed
+
+    delete =
+      respond 
+      $ emptyResponse Sc.SNoContent 
+    post = 
+      respond
+      $ emptyResponse Sc.SNoContent
+      & withHeader H.SLocation "example.com"
+    get = 
+      respond
+      $ emptyResponse Sc.SOk
+      & withBody "hello"
 ```
 
 Which lets us more easily see the pattern. Again, we see distinct server choices
@@ -268,8 +281,11 @@ the remaining path segments captured by our wildcard.
 With this, we can construct a `Server IO` using the `handle` function
 
 ```haskell
-server :: Server IO
-server = handle (Proxy :: Proxy Api_All) (myImplementation :: Impl_All)
+apiProxy :: Sing Api_All
+apiProxy = sing
+
+apiServer :: Server IO
+apiServer = server apiProxy implAll
 ```
 
 and transform this `Server` into a normal Wai `Application` using
@@ -279,7 +295,7 @@ and transform this `Server` into a normal Wai `Application` using
 import qualified Network.Wai as Wai
 
 application :: Wai.Application
-application = makeApplication defaultConfig server
+application = makeApplication defaultConfig apiServer
 ```
 
 # Prior Art
