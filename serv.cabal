@@ -46,6 +46,7 @@ library
     Serv.Internal.Verb
     Serv.Server
     Serv.StatusCode
+    Serv.Swagger
     Serv.URI
 
   build-depends:       base >= 4.7 && < 5
@@ -58,6 +59,7 @@ library
                      , http-types
                      , mtl
                      , singletons
+                     , swagger2
                      , tagged
                      , text
                      , time
