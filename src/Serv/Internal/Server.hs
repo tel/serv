@@ -185,14 +185,34 @@ handle sH impl = Server $
               runServer notFoundS -- not methodNotAllowedS because we can't
                                   -- make that judgement locally.
 
+    SCaptureHeaders sHdrs sH' -> do
+      tryHdrs <- extractHeaders sHdrs
+      case tryHdrs of
+        Left errors ->
+          runServer (badRequestS (Just (unlines ("invalid headers:" : errors))))
+        Right rec ->
+          runServer (handle sH' (impl rec))
+
     -- TODO: These...
 
     SCaptureBody _sCTypes _sTy _sH' ->
       undefined -- runServer (handle sH' (impl _))
-    SCaptureHeaders _sHdrs _sH' ->
-      undefined -- runServer (handle sH' (impl _))
     SCaptureQuery _sQ _sH' ->
       undefined -- runServer (handle sH' (impl _))
+
+extractHeaders
+  :: forall m (hs :: [(Header.HeaderType Symbol, *)])
+  . (Constrain_Headers hs, Monad m)
+  => Sing hs -> InContext m (Either [String] (Rec hs))
+extractHeaders SNil = return (Right Nil)
+extractHeaders (SCons (STuple2 hdr (ty :: Sing a)) rest) = do
+  tryRec <- extractHeaders rest
+  tryHeader <- examineHeader hdr
+  return $ case (tryRec, tryHeader :: Either String a) of
+    (Left errs, Left err) -> Left (err : errs)
+    (Left errs, Right _) -> Left errs
+    (Right rec, Left err) -> Left [err]
+    (Right rec, Right val) -> Right (Cons val rec)
 
 handleResponse
   :: (Constrain_Outputs alts, Monad m)
@@ -310,9 +330,14 @@ type family Constrain_Endpoint (hs :: [Handler Nat Symbol *]) :: Constraint wher
 
 type family Constrain_Handler (h :: Handler Nat Symbol *) :: Constraint where
   Constrain_Handler (CaptureBody ctypes a h) = ((), Constrain_Handler h)
-  Constrain_Handler (CaptureHeaders hspec h) = ((), Constrain_Handler h)
+  Constrain_Handler (CaptureHeaders hspec h) = (Constrain_Headers hspec, Constrain_Handler h)
   Constrain_Handler (CaptureQuery qspec h) = ((), Constrain_Handler h)
   Constrain_Handler (Method verb responses) = (SingI responses, Constrain_Outputs responses)
+
+type family Constrain_Headers (h :: [ (Header.HeaderType Symbol, *) ]) :: Constraint where
+  Constrain_Headers '[] = ()
+  Constrain_Headers (htype ::: ty ': rest) =
+    (HeaderS.HeaderDecode htype ty, Constrain_Headers rest)
 
 type family Constrain_Outputs (rs :: [ (StatusCode Nat, Output Symbol *) ]) :: Constraint where
   Constrain_Outputs '[] = ()
