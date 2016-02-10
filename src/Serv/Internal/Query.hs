@@ -63,10 +63,10 @@ instance Monad QueryKeyState where
 
 -- | Query semantics are defined against the names of the query parameters
 -- available.
-class QueryEncode s a where
+class QueryEncode (s :: Symbol) a where
   queryEncode :: proxy s -> a -> QueryKeyState Text
 
-class QueryDecode s a where
+class QueryDecode (s :: Symbol) a where
   queryDecode :: proxy s -> QueryKeyState Text -> Either String a
 
 -- Analysis

@@ -18,6 +18,7 @@ import           Serv.Internal.Api
 import qualified Serv.Internal.Cors                 as Cors
 import           Serv.Internal.Header               (HeaderType)
 import           Serv.Internal.Header.Serialization (HeaderDecode (..))
+import qualified Serv.Internal.Query                as Q
 import qualified Serv.Internal.Server.Context       as Ctx
 import           Serv.Internal.Verb
 
@@ -74,6 +75,9 @@ examineHeader s = state (swap . Ctx.examineHeader s)
 
 expectHeader :: forall m (n :: HeaderType Symbol) . Monad m => Sing n -> Text -> InContext m Bool
 expectHeader s value = state (swap . Ctx.expectHeader s value)
+
+examineQuery :: (Monad m, Q.QueryDecode s a) => Sing s -> InContext m (Either String a)
+examineQuery s = state (swap . Ctx.examineQuery s)
 
 corsHeaders
   :: forall m (hs :: [Handler Nat Symbol *])

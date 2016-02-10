@@ -13,6 +13,7 @@
 module Serv.Internal.Server.Context where
 
 import qualified Data.ByteString                    as S
+import qualified Data.ByteString.Char8                    as S8
 import qualified Data.ByteString.Lazy               as Sl
 import qualified Data.CaseInsensitive               as CI
 import qualified Data.IORef                         as IORef
@@ -21,6 +22,7 @@ import           Data.Monoid
 import           Data.Set                           (Set)
 import qualified Data.Set                           as Set
 import           Data.Singletons
+import           Data.Singletons.TypeLits
 import           Data.Text                          (Text)
 import           Data.Text.Encoding                 (decodeUtf8')
 import           GHC.TypeLits
@@ -31,6 +33,7 @@ import qualified Serv.Internal.Api.Analysis         as Analysis
 import qualified Serv.Internal.Cors                 as Cors
 import qualified Serv.Internal.Header               as Header
 import qualified Serv.Internal.Header.Serialization as HeaderS
+import qualified Serv.Internal.Query                as Q
 import           Serv.Internal.RawText
 import           Serv.Internal.Server.Config
 import qualified Serv.Internal.URI                  as URI
@@ -169,6 +172,23 @@ examineHeaderFast :: HeaderS.HeaderDecode n a => Sing n -> Context -> Maybe a
 examineHeaderFast s ctx =
   let (_, hdr) = pullHeaderRaw (Header.headerName (Header.headerType s)) ctx
   in hush (HeaderS.headerDecodeRaw s hdr)
+
+-- | Pull a query value from the context, updating it to note that we looked
+examineQuery
+  :: Q.QueryDecode s a
+     => Sing s -> Context -> (Context, Either String a)
+examineQuery s ctx =
+  (ctx, decodedVal)
+  where
+    querySet = Wai.queryString (request ctx)
+    decodedVal =
+      case lookup (S8.pack (withKnownSymbol s (symbolVal s))) querySet of
+        Nothing -> Q.queryDecode s Q.KeyAbsent
+        Just Nothing -> Q.queryDecode s Q.KeyPresent
+        Just (Just v) ->
+          case decodeUtf8' v of
+            Left err -> Left (show err)
+            Right txt -> Q.queryDecode s (Q.KeyValued txt)
 
 -- | Match a header value in the context, updating it to show that we looked
 expectHeader :: forall (n :: Header.HeaderType Symbol) . Sing n -> Text -> Context -> (Context, Bool)
