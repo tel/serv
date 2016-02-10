@@ -205,13 +205,13 @@ extractHeaders
   . (Constrain_Headers hs, Monad m)
   => Sing hs -> InContext m (Either [String] (Rec hs))
 extractHeaders SNil = return (Right Nil)
-extractHeaders (SCons (STuple2 hdr (ty :: Sing a)) rest) = do
+extractHeaders (SCons (STuple2 hdr (_ty :: Sing a)) rest) = do
   tryRec <- extractHeaders rest
   tryHeader <- examineHeader hdr
   return $ case (tryRec, tryHeader :: Either String a) of
     (Left errs, Left err) -> Left (err : errs)
     (Left errs, Right _) -> Left errs
-    (Right rec, Left err) -> Left [err]
+    (Right _, Left err) -> Left [err]
     (Right rec, Right val) -> Right (Cons val rec)
 
 handleResponse
