@@ -201,7 +201,6 @@ handle sH impl = Server $
           runServer (badRequestS (Just (unlines ("invalid query:" : errors))))
         Right rec ->
           runServer (handle sH' (impl rec))
-      undefined -- runServer (handle sH' (impl _))
 
     -- TODO: These...
 
