@@ -4,8 +4,9 @@ module Serv.Internal.URI where
 import Control.Monad (liftM)
 import qualified Data.ByteString.Char8 as S8
 import           Data.Text             (Text)
-import           Data.Text.Read
+import qualified Data.Text             as Text
 import qualified Data.Text.Encoding    as Enc
+import           Data.Text.Read        (decimal)
 import           Serv.Internal.RawText
 
 -- Class
@@ -28,5 +29,15 @@ fromByteString s = case Enc.decodeUtf8' s of
 instance URIDecode RawText where
   uriDecode text = Right (RawText text)
 
-instance URIDecode Int where
-  uriDecode = liftM fst . decimal
+-- | Decoder for any type with a decimal representation. Requires a 'Show'
+-- instance for the error message.
+uriDecodeDecimal :: (Show a, Integral a) => Text -> Either String a
+uriDecodeDecimal txt =
+  case decimal txt of
+    Left err -> Left err
+    Right (a, t)
+      | Text.null t -> Right a
+      | otherwise -> Left ("incomplete parse: " ++ show (a, t))
+
+instance URIDecode Int where uriDecode = uriDecodeDecimal
+instance URIDecode Integer where uriDecode = uriDecodeDecimal
