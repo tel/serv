@@ -1,6 +1,7 @@
 
 module Serv.Internal.URI where
 
+import Control.Monad (liftM)
 import qualified Data.ByteString.Char8 as S8
 import           Data.Text             (Text)
 import qualified Data.Text             as Text

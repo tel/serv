@@ -63,7 +63,7 @@ another.
 
 Serv lets you specify your API as a type. 
 
-For instance, if your have an API-description type `A` then `Impl A IO` is the
+For instance, if your have an API-description type `A` then `Impl IO A` is the
 type of a server implementation (running in the `IO` monad) which necessarily
 follows the same structure as `A`. It will require this server to consume data
 read from the path, will automatically route things properly, and ensures that
@@ -90,11 +90,13 @@ listing the `Method`s they respond to. To do this, we define a set of types. For
 instance, a simple API might look like
 
 ```haskell
-{-# LANGUAGE DataKinds, TypeOperators #-}
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE TypeOperators     #-}
 
 import Serv.Api
+import qualified Serv.StatusCode as Sc
 
-type Method_1 = 'Method 'DELETE '[] 'Empty
+type Method_1 = 'Method 'DELETE '[ 'Sc.NoContent ::: 'Respond '[] 'Empty ]
 ```
 
 where the single-quotes indicate that we are using a data constructor at the
@@ -104,9 +106,15 @@ types `'GET`, `'PUT`, `'DELETE`, etc. which all have *kind* `Verb`. Serv uses
 `DataKinds` extensively to enable kind-safe type-level programming in the same
 way that Haskell normally enables type-safe value-level programming.
 
-Above, `AMethod` is a type describing a single method, a `DELETE` method which
-produces an empty response with no special headers. We use a type-level list
-`'[]` to describe the set of headers returned.
+For convenience, Serv exports a number of type synonyms to cut down on
+syntactic noise caused by constantly having to promote types to kinds. Thus,
+the following is equivalent to the above and less cumbersome to type:
+
+type Method_1 = Method DELETE '[ Sc.NoContent ::: Respond '[] Empty ]
+
+Above, `Method_1` is a type describing a single method, a `DELETE` method which
+produces an empty response with no special headers and a no content status code
+(204). We use a type-level list `'[]` to describe the set of headers returned.
 
 Another method might return a particular header:
 
@@ -114,14 +122,15 @@ Another method might return a particular header:
 import           Serv.Common (RawText)
 import qualified Serv.Header as H
 
-type Method_2 = 'Method 'POST '[ 'H.Location '::: RawText ] 'Empty
+type Method_2 = Method POST 
+                '[ Sc.NoContent ::: Respond '[ H.Location ::: RawText ] Empty ]
 ```
 
 Here, `Method_2` must return the `Location` header specified by some `RawText`
 value. We use `(:::)` to link `H.HeaderName`s to Haskell types which *have
 semantics for* that header. `RawText` has semantics for every header since it
 just lets the server write out to the header directly. Otherwise, a header
-specification `h '::: ty` has semantics when we have an instance for
+specification `h ::: ty` has semantics when we have an instance for
 `H.HeaderEncode h ty` and/or `H.HeaderDecode h ty` depending on whether we're
 interested in reading or writing such a header.
 
@@ -132,7 +141,9 @@ far, `Method_1` and `Method_2` returned `'Empty` bodies, but we can fix that.
 import           Data.Text (Text)
 import qualified Serv.ContentType as Ct
 
-type Method_3 = 'Method 'GET '[] ('Body '[ Ct.TextPlain ] Text)
+type RawBody = HasBody '[ Ct.TextPlain ] Text
+
+type Method_3 = Method GET '[ Sc.Ok ::: Respond '[] RawBody ]
 ```
 
 To specify a body we use the type `'Body ctypes bodyType` which specifies a type
@@ -146,7 +157,7 @@ content type which has semantics for `Text` as there is an instance for
 A collection of methods forms an `Endpoint`
 
 ```haskell
-type Endpoint_1 = 'Endpoint '[ Method_1, Method_2, Method_3 ]
+type Endpoint_1 = Endpoint () '[ Method_1, Method_2, Method_3 ]
 ```
 
 and Serv ensures that `'Endpoint`s always arise as lists of `'Method`s. We embed
@@ -157,13 +168,15 @@ The simplest path augmentation is to add a constant path segment in front of an
 endpoint
 
 ```haskell
-type Api_1 = 'Const "users" ':> Endpoint_1
+{-# LANGUAGE PolyKinds #-}
+
+type Api_1 = Const "users" :> Endpoint_1
 ```
 
 other path augmentations include *capture* of a particular segment
 
 ```haskell
-type Api_2 = 'Const "users" ':> 'Seg "user_id" Int ':> Endpoint_1
+type Api_2 = Const "users" :> Seg "user_id" Int :> Endpoint_1
 ```
 
 where we interpret the path segment as an `Int` or fail to match this path. We
@@ -172,15 +185,15 @@ know how to interpret segments as `Int`s due to instances of
 with a *wildcard*
 
 ```haskell
-type Api_3 = 'Wildcard :> Endpoint_1
+type Api_3 = Wildcard :> Endpoint_1
 ```
 
 Given a number of path-augmented `'Endpoint`s we'd like to glue these together
 into a set of options which is done using `'OneOf`
 
 ```haskell
-type Api_All =   'Const "api"
-             ':> 'OneOf '[ Api_1, Api_2, Api_3 ]
+type Api_All =  Const "api"
+             :> OneOf '[ Api_1, Api_2, Api_3 ]
 ```
 
 and from these pieces we can construct API matching trees of whatever shape we
@@ -193,28 +206,33 @@ type `Impl api m` for the particular `Api` type we have. We can use GHCi's kind
 evaluator to see what `Impl Api_All IO` looks like:
 
 ```haskell
-> :kind Impl Api_All IO
-Impl Api_All IO :: *
-= (IO (Response '[] 'Empty)
-   :<|> (IO (Response '['H.Location '::: RawText] 'Empty)
-         :<|> (IO (Response '[] ('Body '[Ct.TextPlain] Text))
-               :<|> IO NotHere)))
+> :kind! Impl IO Api_All
+Impl IO Api_All :: *
+= (IO (SomeResponse '[Ok ::: Respond '[] Empty])
+   :<|> (IO
+           (SomeResponse '[Ok ::: Respond '[Location ::: RawText] Empty])
+         :<|> (IO (SomeResponse '[Ok ::: Respond '[] RawBody])
+               :<|> Serv.Internal.Server.Type.MethodNotAllowed)))
   :<|> ((Tagged "user_id" Int
-         -> IO (Response '[] 'Empty)
-            :<|> (IO (Response '['H.Location '::: RawText] 'Empty)
-                  :<|> (IO (Response '[] ('Body '[Ct.TextPlain] Text))
-                        :<|> IO NotHere)))
+         -> IO (SomeResponse '[Ok ::: Respond '[] Empty])
+            :<|> (IO
+                    (SomeResponse '[Ok ::: Respond '[Location ::: RawText] Empty])
+                  :<|> (IO (SomeResponse '[Ok ::: Respond '[] RawBody])
+                        :<|> Serv.Internal.Server.Type.MethodNotAllowed)))
         :<|> (([Text]
-               -> IO (Response '[] 'Empty)
-                  :<|> (IO (Response '['H.Location '::: RawText] 'Empty)
-                        :<|> (IO (Response '[] ('Body '[Ct.TextPlain] Text))
-                              :<|> IO NotHere)))
+               -> IO (SomeResponse '[Ok ::: Respond '[] Empty])
+                  :<|> (IO
+                          (SomeResponse '[Ok ::: Respond '[Location ::: RawText] Empty])
+                        :<|> (IO (SomeResponse '[Ok ::: Respond '[] RawBody])
+                              :<|> Serv.Internal.Server.Type.MethodNotAllowed)))
+              :<|> Serv.Internal.Server.Type.NotFound))
               :<|> IO NotHere))
+
 ```
 
 Ugly! But regular! Taking a closer look we can note what's going on here.
 
-First, we note that `Impl Api_All IO :: *`. In other words, it's an actual
+First, we note that `Impl IO Api_All IO :: *`. In other words, it's an actual
 Haskell *type*: something we can produce values of.
 
 Second, note that there's a big repeated chunk in the middle. This comes from
@@ -222,30 +240,55 @@ the fact that we hit the same Endpoint definition three times. Let's refactor by
 finding the kind of `Impl Endpoint_1 IO`
 
 ```haskell
-type Impl_Endpoint =
-       IO (Response '[] 'Empty)
-  :<|> IO (Response '['H.Location '::: RawText] 'Empty)
-  :<|> IO (Response '[] ('Body '[Ct.TextPlain] Text))
-  :<|> IO NotHere
+> :kind! Impl IO Endpoint_1
+Impl IO Endpoint_1 :: *
+= IO (SomeResponse '['NoContent ::: 'Respond '[] 'Empty])
+  :<|> (IO
+            (SomeResponse
+                         '[NoContent ::: Respond '[Location ::: RawText]
+                         Empty])
+                                 :<|> (IO (SomeResponse '[NoContent ::: Respond
+                                 '[] RawBody])
+                                               :<|>
+                                               Serv.Internal.Server.Type.MethodNotAllowed))
+
+
 ```
 
-Here we see that we have one `IO (Response ...)` for each method at our
-endpoint. We also have to provide the final `NotHere` server implementation
-which is given to us by `noOp :: Monad m => m NotHere` and simply indicates an
+Here we see that we have one `IO (SomeResponse ...)` for each method at our
+endpoint. We also have to provide the final `NotFound` server implementation
+which is given to us by `noOp :: Monad m => m NotFound` and simply indicates an
 automatic `404 Not Found` error.
 
 With this defined, we can give a fast type to `Impl Api_All IO`
 
 ```haskell
-type Impl_All =
-       Impl_Endpoint
-  :<|> Tagged "user_id" Int -> Impl_Endpoint
-  :<|> [Text] -> Impl_Endpoint
-  :<|> IO NotHere
+{-# LANGUAGE OverloadedStrings #-}
+import Serv.Server
+import Data.Function ((&))
+
+impl_all :: Impl IO Api_All
+impl_all = impl_1 :<|> impl_2 :<|> impl_3 :<|> NotFound
+  where
+    impl_1 = delete :<|> post :<|> get :<|> MethodNotAllowed
+    impl_2 _ = delete :<|> post :<|> get :<|> MethodNotAllowed
+    impl_3 _ = delete :<|> post :<|> get :<|> MethodNotAllowed
+
+    delete =
+      respond 
+      $ emptyResponse Sc.SNoContent 
+    post = 
+      respond
+      $ emptyResponse Sc.SNoContent
+      & withHeader H.SLocation "example.com"
+    get = 
+      respond
+      $ emptyResponse Sc.SOk
+      & withBody "hello"
 ```
 
 Which lets us more easily see the pattern. Again, we see distinct server choices
-separated by `:<|>` and `IO NotHere` to indicate the final, failing server at
+separated by `:<|>` and `IO NotFound` to indicate the final, failing server at
 the bottom of the stack. We must also describe the endpoint implementations in
 various contexts: one for each in the API specification!
 
@@ -254,11 +297,14 @@ context where we have an `Int` which was read in as the `"user_id"`, and finally
 in a context where we have a list of `Text` fragments corresponding to all of
 the remaining path segments captured by our wildcard.
 
-With this, we can construct a `Server IO` using the `handle` function
+With this, we can construct a `Server IO` using the `server` function
 
 ```haskell
-server :: Server IO
-server = handle (Proxy :: Proxy Api_All) (myImplementation :: Impl_All)
+apiProxy :: Sing Api_All
+apiProxy = sing
+
+apiServer :: Server IO
+apiServer = server apiProxy implAll
 ```
 
 and transform this `Server` into a normal Wai `Application` using
@@ -268,7 +314,7 @@ and transform this `Server` into a normal Wai `Application` using
 import qualified Network.Wai as Wai
 
 application :: Wai.Application
-application = makeApplication defaultConfig server
+application = makeApplication defaultConfig apiServer
 ```
 
 # Prior Art
