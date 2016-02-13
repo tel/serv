@@ -14,13 +14,11 @@
 
 module Serv.Internal.Header where
 
-import qualified Data.CaseInsensitive as CI
-import           Data.Singletons
+import qualified Data.CaseInsensitive     as CI
 import           Data.Singletons.TH
+import           Data.Singletons.TypeLits
 import           Data.String
-import           Data.Text            (Text)
-import qualified Data.Text            as Text
-import           GHC.TypeLits
+import           Data.Text                (Text)
 
 -- | The variant (name and meaning) of a HTTP header.
 --
@@ -510,9 +508,6 @@ type XForwardedFor = 'XForwardedFor
 type XForwardedHost = 'XForwardedHost
 type XForwardedProto = 'XForwardedProto
 
-headerType :: forall s (h :: HeaderType Symbol) . IsString s => Sing h -> HeaderType s
-headerType = fmap fromString . fromSing
-
 standardHeaders :: [HeaderType a]
 standardHeaders =
   [ CacheControl
@@ -583,76 +578,76 @@ standardHeaders =
   , WWWAuthenticate
   ]
 
-headerName :: IsString s => HeaderType Text -> s
+headerName :: forall s (h :: HeaderType Symbol) . IsString s => Sing h -> s
 headerName h =
   case h of
-    CustomHeader name -> fromString (Text.unpack name)
-    Accept -> "Accept"
-    AcceptCharset -> "Accept-Charset"
-    AcceptEncoding -> "Accept-Encoding"
-    AcceptLanguage -> "Accept-Language"
-    AcceptPatch -> "Accept-Patch"
-    AcceptRanges -> "Accept-Ranges"
-    AccessControlAllowCredentials -> "Access-Control-Allow-Credentials"
-    AccessControlAllowHeaders -> "Access-Control-Allow-Headers"
-    AccessControlAllowMethods -> "Access-Control-Allow-Methods"
-    AccessControlAllowOrigin -> "Access-Control-Allow-Origin"
-    AccessControlExposeHeaders -> "Access-Control-Expose-Headers"
-    AccessControlMaxAge -> "Access-Control-Max-Age"
-    AccessControlRequestHeaders -> "Access-Control-Request-Headers"
-    AccessControlRequestMethod -> "Access-Control-Request-Method"
-    Age -> "Age"
-    Allow -> "Allow"
-    Authorization -> "Authorization"
-    CacheControl -> "Cache-Control"
-    Connection -> "Connection"
-    ContentDisposition -> "Content-Disposition"
-    ContentEncoding -> "Content-Encoding"
-    ContentLanguage -> "Content-Language"
-    ContentLength -> "Content-Length"
-    ContentLocation -> "Content-Location"
-    ContentRange -> "Content-Range"
-    ContentSecurityPolicy -> "Content-Security-Policy"
-    ContentType -> "Content-Type"
-    Cookie -> "Cookie"
-    Date -> "Date"
-    ETag -> "ETag"
-    Expect -> "Expect"
-    Expires -> "Expires"
-    From -> "From"
-    Host -> "Host"
-    IfMatch -> "If-Match"
-    IfModifiedSince -> "If-Modified-Since"
-    IfNoneMatch -> "If-None-Match"
-    IfRange -> "If-Range"
-    IfUnmodifiedSince -> "If-Unmodified-Since"
-    LastModified -> "Last-Modified"
-    Link -> "Link"
-    Location -> "Location"
-    MaxForwards -> "Max-Forwards"
-    Origin -> "Origin"
-    Pragma -> "Pragma"
-    ProxyAuthenticate -> "Proxy-Authenticate"
-    ProxyAuthorization -> "Proxy-Authorization"
-    PublicKeyPins -> "Public-Key-Pins"
-    Range -> "Range"
-    Referer -> "Referer"
-    RetryAfter -> "Retry-After"
-    SetCookie -> "Set-Cookie"
-    StrictTransportSecurity -> "Strict-Transport-Security"
-    TE -> "TE"
-    Trailer -> "Trailer"
-    TransferEncoding -> "Transfer-Encoding"
-    Upgrade -> "Upgrade"
-    UserAgent -> "User-Agent"
-    Vary -> "Vary"
-    Via -> "Via"
-    WWWAuthenticate -> "WWW-Authenticate"
-    Warning -> "Warning"
-    XCsrfToken -> "X-Csrf-Token"
-    XForwardedFor -> "X-Forwarded-For"
-    XForwardedHost -> "X-Forwarded-Host"
-    XForwardedProto -> "X-Forwarded-Proto"
+    SCustomHeader name -> fromString (withKnownSymbol name (symbolVal name))
+    SAccept -> "Accept"
+    SAcceptCharset -> "Accept-Charset"
+    SAcceptEncoding -> "Accept-Encoding"
+    SAcceptLanguage -> "Accept-Language"
+    SAcceptPatch -> "Accept-Patch"
+    SAcceptRanges -> "Accept-Ranges"
+    SAccessControlAllowCredentials -> "Access-Control-Allow-Credentials"
+    SAccessControlAllowHeaders -> "Access-Control-Allow-Headers"
+    SAccessControlAllowMethods -> "Access-Control-Allow-Methods"
+    SAccessControlAllowOrigin -> "Access-Control-Allow-Origin"
+    SAccessControlExposeHeaders -> "Access-Control-Expose-Headers"
+    SAccessControlMaxAge -> "Access-Control-Max-Age"
+    SAccessControlRequestHeaders -> "Access-Control-Request-Headers"
+    SAccessControlRequestMethod -> "Access-Control-Request-Method"
+    SAge -> "Age"
+    SAllow -> "Allow"
+    SAuthorization -> "Authorization"
+    SCacheControl -> "Cache-Control"
+    SConnection -> "Connection"
+    SContentDisposition -> "Content-Disposition"
+    SContentEncoding -> "Content-Encoding"
+    SContentLanguage -> "Content-Language"
+    SContentLength -> "Content-Length"
+    SContentLocation -> "Content-Location"
+    SContentRange -> "Content-Range"
+    SContentSecurityPolicy -> "Content-Security-Policy"
+    SContentType -> "Content-Type"
+    SCookie -> "Cookie"
+    SDate -> "Date"
+    SETag -> "ETag"
+    SExpect -> "Expect"
+    SExpires -> "Expires"
+    SFrom -> "From"
+    SHost -> "Host"
+    SIfMatch -> "If-Match"
+    SIfModifiedSince -> "If-Modified-Since"
+    SIfNoneMatch -> "If-None-Match"
+    SIfRange -> "If-Range"
+    SIfUnmodifiedSince -> "If-Unmodified-Since"
+    SLastModified -> "Last-Modified"
+    SLink -> "Link"
+    SLocation -> "Location"
+    SMaxForwards -> "Max-Forwards"
+    SOrigin -> "Origin"
+    SPragma -> "Pragma"
+    SProxyAuthenticate -> "Proxy-Authenticate"
+    SProxyAuthorization -> "Proxy-Authorization"
+    SPublicKeyPins -> "Public-Key-Pins"
+    SRange -> "Range"
+    SReferer -> "Referer"
+    SRetryAfter -> "Retry-After"
+    SSetCookie -> "Set-Cookie"
+    SStrictTransportSecurity -> "Strict-Transport-Security"
+    STE -> "TE"
+    STrailer -> "Trailer"
+    STransferEncoding -> "Transfer-Encoding"
+    SUpgrade -> "Upgrade"
+    SUserAgent -> "User-Agent"
+    SVary -> "Vary"
+    SVia -> "Via"
+    SWWWAuthenticate -> "WWW-Authenticate"
+    SWarning -> "Warning"
+    SXCsrfToken -> "X-Csrf-Token"
+    SXForwardedFor -> "X-Forwarded-For"
+    SXForwardedHost -> "X-Forwarded-Host"
+    SXForwardedProto -> "X-Forwarded-Proto"
 
 nameHeader :: CI.CI Text -> HeaderType Text
 nameHeader n =

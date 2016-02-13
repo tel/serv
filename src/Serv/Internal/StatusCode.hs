@@ -17,6 +17,7 @@
 module Serv.Internal.StatusCode where
 
 import           Data.Singletons.TH
+import           Data.Singletons.TypeLits
 import qualified Network.HTTP.Types.Status as S
 
 singletons
@@ -163,68 +164,68 @@ type LoopDetected = 'LoopDetected
 type NotExtended = 'NotExtended
 type NetworkAuthenticationRequired = 'NetworkAuthenticationRequired
 
-httpStatus :: StatusCode Integer -> S.Status
+httpStatus :: forall (c :: StatusCode Nat) . Sing c -> S.Status
 httpStatus c =
   case c of
-    CustomStatus int -> S.mkStatus (fromInteger int) ""
+    SCustomStatus s -> S.mkStatus (fromInteger (withKnownNat s (natVal s))) ""
 
-    Continue -> S.status100
-    SwitchingProtocols -> S.status101
+    SContinue -> S.status100
+    SSwitchingProtocols -> S.status101
 
-    Ok -> S.status200
-    Created -> S.status201
-    Accepted -> S.status202
-    NonAuthoritiveInformation -> S.status203
-    NoContent -> S.status204
-    ResetContent -> S.status205
-    PartialContent -> S.status206
-    IMUsed -> S.mkStatus 226 "IM Used"
+    SOk -> S.status200
+    SCreated -> S.status201
+    SAccepted -> S.status202
+    SNonAuthoritiveInformation -> S.status203
+    SNoContent -> S.status204
+    SResetContent -> S.status205
+    SPartialContent -> S.status206
+    SIMUsed -> S.mkStatus 226 "IM Used"
 
-    MultipleChoices -> S.status300
-    MovedPermanently -> S.status301
-    Found -> S.status302
-    SeeOther -> S.status303
-    NotModified -> S.status304
-    TemporaryRedirect -> S.status307
-    PermanentRedirect -> S.status308
+    SMultipleChoices -> S.status300
+    SMovedPermanently -> S.status301
+    SFound -> S.status302
+    SSeeOther -> S.status303
+    SNotModified -> S.status304
+    STemporaryRedirect -> S.status307
+    SPermanentRedirect -> S.status308
 
-    BadRequest -> S.status400
-    Unauthorized -> S.status401
-    PaymentRequired -> S.status402
-    Forbidden -> S.status403
-    NotFound -> S.status404
-    MethodNotAllowed -> S.status405
-    NotAcceptable -> S.status406
-    ProxyAuthenticationRequired -> S.status407
-    RequestTimeout -> S.status408
-    Conflict -> S.status409
-    Gone -> S.status410
-    LengthRequired -> S.status411
-    PreconditionFailed -> S.status412
-    PayloadTooLarge -> S.status413
-    RequestURITooLong -> S.status414
-    UnsupportedMediaType -> S.status415
-    RequestedRangeNotSatisfiable -> S.status416
-    ExpectationFailed -> S.status417
-    MisdirectedRequest -> S.mkStatus 421 "Misdirected Request"
-    UnprocessableEntity -> S.mkStatus 422 "Unprocessable Entity"
-    Locked -> S.mkStatus 423 "Locked"
-    FailedDependency -> S.mkStatus 424 "Failed Dependency"
-    UpgradeRequired -> S.mkStatus 426 "Upgrade Required"
-    PreconditionRequired -> S.status428
-    TooManyRequests -> S.status429
-    RequestHeaderFieldsTooLarge -> S.status431
-    UnavailableForLegalReasons -> S.mkStatus 451 "Unavailable for Legal Reasons"
+    SBadRequest -> S.status400
+    SUnauthorized -> S.status401
+    SPaymentRequired -> S.status402
+    SForbidden -> S.status403
+    SNotFound -> S.status404
+    SMethodNotAllowed -> S.status405
+    SNotAcceptable -> S.status406
+    SProxyAuthenticationRequired -> S.status407
+    SRequestTimeout -> S.status408
+    SConflict -> S.status409
+    SGone -> S.status410
+    SLengthRequired -> S.status411
+    SPreconditionFailed -> S.status412
+    SPayloadTooLarge -> S.status413
+    SRequestURITooLong -> S.status414
+    SUnsupportedMediaType -> S.status415
+    SRequestedRangeNotSatisfiable -> S.status416
+    SExpectationFailed -> S.status417
+    SMisdirectedRequest -> S.mkStatus 421 "Misdirected Request"
+    SUnprocessableEntity -> S.mkStatus 422 "Unprocessable Entity"
+    SLocked -> S.mkStatus 423 "Locked"
+    SFailedDependency -> S.mkStatus 424 "Failed Dependency"
+    SUpgradeRequired -> S.mkStatus 426 "Upgrade Required"
+    SPreconditionRequired -> S.status428
+    STooManyRequests -> S.status429
+    SRequestHeaderFieldsTooLarge -> S.status431
+    SUnavailableForLegalReasons -> S.mkStatus 451 "Unavailable for Legal Reasons"
 
-    InternalServerError -> S.status500
-    NotImplemented -> S.status501
-    BadGateway -> S.status502
-    ServiceUnavailable -> S.status503
-    GatewayTimeout -> S.status504
-    HTTPVersionNotSupported -> S.status505
-    VariantAlsoNegotiates -> S.mkStatus 506 "Variant Also Negotiates"
-    InsufficientStorage -> S.mkStatus 507 "Insufficient Storage"
-    LoopDetected -> S.mkStatus 508 "Loop Detected"
-    NotExtended -> S.mkStatus 510 "Not Extended"
-    NetworkAuthenticationRequired -> S.status511
+    SInternalServerError -> S.status500
+    SNotImplemented -> S.status501
+    SBadGateway -> S.status502
+    SServiceUnavailable -> S.status503
+    SGatewayTimeout -> S.status504
+    SHTTPVersionNotSupported -> S.status505
+    SVariantAlsoNegotiates -> S.mkStatus 506 "Variant Also Negotiates"
+    SInsufficientStorage -> S.mkStatus 507 "Insufficient Storage"
+    SLoopDetected -> S.mkStatus 508 "Loop Detected"
+    SNotExtended -> S.mkStatus 510 "Not Extended"
+    SNetworkAuthenticationRequired -> S.status511
 

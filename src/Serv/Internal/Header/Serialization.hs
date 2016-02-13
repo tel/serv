@@ -84,7 +84,7 @@ type HeaderEncodes rs = AllC (UncurrySym1 (TyCon2 HeaderEncode)) rs
 
 -- | Encode a header type and a corresponding value into a full header pair.
 headerPair :: HeaderEncode h v => Sing h -> v -> Maybe HTTP.Header
-headerPair s v = (headerName (headerType s), ) <$> headerEncodeRaw s v
+headerPair s v = (headerName s, ) <$> headerEncodeRaw s v
 
 firstName :: SingI name => Rec (name ::: ty ': rs) -> Sing name
 firstName _ = sing
