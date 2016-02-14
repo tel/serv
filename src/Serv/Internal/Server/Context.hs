@@ -25,7 +25,6 @@ import           Data.Singletons
 import           Data.Singletons.TypeLits
 import           Data.Text                          (Text)
 import           Data.Text.Encoding                 (decodeUtf8')
-import           GHC.TypeLits
 import qualified Network.HTTP.Types                 as HTTP
 import qualified Network.Wai                        as Wai
 import           Serv.Internal.Api
