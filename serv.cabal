@@ -57,6 +57,7 @@ library
                      , containers
                      , http-media
                      , http-types
+                     , lens
                      , mtl
                      , singletons
                      , swagger2
