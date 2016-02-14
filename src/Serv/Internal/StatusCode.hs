@@ -17,6 +17,7 @@
 module Serv.Internal.StatusCode where
 
 import           Data.Singletons.TH
+import           Data.Singletons.TypeLits
 import qualified Network.HTTP.Types.Status as S
 
 singletons
@@ -166,7 +167,7 @@ type NetworkAuthenticationRequired = 'NetworkAuthenticationRequired
 httpStatus :: forall (sc :: StatusCode Nat) . Sing sc -> S.Status
 httpStatus c =
   case c of
-    SCustomStatus int -> S.mkStatus (withKnownNat int (natVal int)) ""
+    SCustomStatus int -> S.mkStatus (fromInteger (withKnownNat int (natVal int))) ""
 
     SContinue -> S.status100
     SSwitchingProtocols -> S.status101
