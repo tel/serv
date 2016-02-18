@@ -29,6 +29,9 @@ fromByteString s = case Enc.decodeUtf8' s of
 instance URIDecode RawText where
   uriDecode text = Right (RawText text)
 
+instance URIDecode Text where
+  uriDecode text = Right text
+
 -- | Decoder for any type with a decimal representation. Requires a 'Show'
 -- instance for the error message.
 uriDecodeDecimal :: (Show a, Integral a) => Text -> Either String a
