@@ -2,6 +2,7 @@
 module Serv.Internal.URI where
 
 import qualified Data.ByteString.Char8 as S8
+import           Data.Int
 import           Data.Text             (Text)
 import qualified Data.Text             as Text
 import qualified Data.Text.Encoding    as Enc
@@ -39,4 +40,8 @@ uriDecodeDecimal txt =
       | otherwise -> Left ("incomplete parse: " ++ show (a, t))
 
 instance URIDecode Int where uriDecode = uriDecodeDecimal
+instance URIDecode Int8 where uriDecode = uriDecodeDecimal
+instance URIDecode Int16 where uriDecode = uriDecodeDecimal
+instance URIDecode Int32 where uriDecode = uriDecodeDecimal
+instance URIDecode Int64 where uriDecode = uriDecodeDecimal
 instance URIDecode Integer where uriDecode = uriDecodeDecimal
