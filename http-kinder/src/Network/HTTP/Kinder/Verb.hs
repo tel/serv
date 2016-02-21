@@ -10,7 +10,27 @@
 
 -- | Defines types and kinds for working with type and value level HTTP
 -- verbs.
-module Network.HTTP.Kinder.Verb where
+module Network.HTTP.Kinder.Verb (
+
+  -- * Functions and types for working with 'HeaderName' 'Sing's
+    verbName
+  , parseVerb
+
+  -- * The 'Verb' type/kind
+  , Verb (..)
+  , Sing ( SDELETE, SGET, SHEAD, SOPTIONS, SPATCH, SPOST, SPUT )
+
+  -- * Type synonyms for more convenient use of 'HeaderName's
+
+  , DELETE
+  , GET
+  , HEAD
+  , OPTIONS
+  , PATCH
+  , POST
+  , PUT
+
+) where
 
 import qualified Data.ByteString      as S
 import qualified Data.CaseInsensitive as CI

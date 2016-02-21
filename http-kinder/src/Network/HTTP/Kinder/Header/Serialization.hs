@@ -9,7 +9,28 @@
 -- | 'HeaderName's define semantics for 'Text' values seen in HTTP headers
 -- over the wire. This module provides classes to map both to and from
 -- these reprsentations.
-module Network.HTTP.Kinder.Header.Serialization where
+module Network.HTTP.Kinder.Header.Serialization (
+
+
+  -- * Classes for encoding and decoding
+
+    HeaderEncode (..)
+  , HeaderDecode (..)
+
+  -- * Extra serialization utilities
+
+  , headerEncodePair
+  , headerEncodeBS
+  , headerDecodeBS
+
+  -- * Utilities for writing serialization instances
+
+  , displaySetOpt
+  , uniqueSet
+  , required
+  , withDefault
+
+) where
 
 import qualified Data.ByteString                        as S
 import           Data.CaseInsensitive                   (CI)
@@ -20,7 +41,7 @@ import           Data.Text                              (Text)
 import qualified Data.Text                              as Text
 import qualified Data.Text.Encoding                     as Text
 import           Network.HTTP.Kinder.Header.Definitions
-import           Network.HTTP.Kinder.Types
+import           Network.HTTP.Kinder.Common
 
 -- | Determines a 'Text' representation for some value to be encoded as
 -- a value of a given 'HeaderName'. Any proxy can be passed as the first
@@ -35,9 +56,15 @@ class HeaderEncode (n :: HeaderName) a where
 headerEncodePair
   :: forall a (n :: HeaderName)
   . HeaderEncode n a => Sing n -> a -> Maybe (CI S.ByteString, S.ByteString)
-headerEncodePair sing a = do
-  txt <- headerEncode sing a
-  return (headerName sing, Text.encodeUtf8 txt)
+headerEncodePair s a = do
+  bs <- headerEncodeBS s a
+  return (headerName s, bs)
+
+-- | While the semantics of HTTP headers are built off of 'Text'-like
+-- values, usually we require a 'S.ByteString' for emission. This helper
+-- function converts a header value directly to a 'S.ByteString'.
+headerEncodeBS :: HeaderEncode n a => sing n -> a -> Maybe S.ByteString
+headerEncodeBS s = fmap Text.encodeUtf8 . headerEncode s
 
 -- | Interprets a (possibly missing) 'Text' representation for some value
 -- taking semantics at a given 'HeaderName'. Any proxy can be passed as the
@@ -46,6 +73,19 @@ headerEncodePair sing a = do
 -- seeking a default value (should one exist).
 class HeaderDecode (n :: HeaderName) a where
   headerDecode :: sing n -> Maybe Text -> Either String a
+
+-- | While HTTP header semantics are built off of 'Text'-like values, we
+-- usually read a raw 'S.ByteString' from the wire. This helper function
+-- combines a 'HeaderDecode' with a UTF-8 decode so as to attempt to
+-- deserialize header values directly from a 'S.ByteString'.
+headerDecodeBS :: HeaderDecode n a => sing n -> Maybe S.ByteString -> Either String a
+headerDecodeBS proxy mays =
+  case mays of
+    Nothing -> headerDecode proxy Nothing
+    Just s ->
+      case Text.decodeUtf8' s of
+        Left err -> Left (show err)
+        Right t -> headerDecode proxy (Just t)
 
 -- Instances/Encoding
 -- ----------------------------------------------------------------------------
@@ -57,8 +97,8 @@ displaySetOpt s
   | Set.null s = Nothing
   | otherwise = Just (Text.intercalate "," (Set.toList s))
 
--- | Extend an instance on @'Set' v@ to @[v]@.
-uniqueSet :: (Ord v, HeaderEncode n (Set v)) => Sing n -> [v] -> Maybe Text
+-- | Extend a 'HeaderEncode' instance on @'Set' v@ to @[v]@.
+uniqueSet :: (Ord v, HeaderEncode n (Set v)) => sing n -> [v] -> Maybe Text
 uniqueSet s = headerEncode s . Set.fromList
 
 -- | Reports a "raw" value without interpretation

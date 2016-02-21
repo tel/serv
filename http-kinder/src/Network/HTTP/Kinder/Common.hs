@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
--- | Standard types useful for the "kinder" HTTP system.
-module Network.HTTP.Kinder.Types where
+-- | Common types useful for the "kinder" HTTP system.
+module Network.HTTP.Kinder.Common where
 
 import           Data.String
 

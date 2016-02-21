@@ -17,7 +17,7 @@ library
   exposed-modules:
 
     -- Network.HTTP.Kinder
-    Network.HTTP.Kinder.Types
+    Network.HTTP.Kinder.Common
     Network.HTTP.Kinder.Header
     Network.HTTP.Kinder.Header.Definitions
     Network.HTTP.Kinder.Header.Serialization
@@ -25,7 +25,7 @@ library
     -- Network.HTTP.Kinder.Query
     -- Network.HTTP.Kinder.Status
     -- Network.HTTP.Kinder.URI
-    -- Network.HTTP.Kinder.Verb
+    Network.HTTP.Kinder.Verb
 
   build-depends:       base >= 4.7 && < 5
 

@@ -336,8 +336,8 @@ nameHeader n =
         SomeSing s -> SomeHeaderName (SCustomHeader s)
 
 -- | A data type representing names describing headers in an HTTP request.
--- But, much more importantly, with @DataKinds@ this becomes a kind
--- describing types one for each header name.
+-- Much more importantly, with @DataKinds@ enabled this becomes a kind
+-- describing types, one for each such header name.
 --
 -- It's worth noting that values of this type can be had, but one branch,
 -- 'CustomHeader' will not work since it requires 'Symbol' values which
