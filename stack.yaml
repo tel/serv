@@ -1,6 +1,6 @@
 resolver: lts-5.0
 packages:
-- '.'
+- serv
 extra-deps: []
 flags: {}
 extra-package-dbs: []
