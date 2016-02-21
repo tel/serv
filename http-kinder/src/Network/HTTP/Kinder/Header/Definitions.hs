@@ -5,7 +5,16 @@
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TypeFamilies              #-}
 
--- | Defines the types and kinds for working with type and value lever headers.
+-- | Defines the types and kinds for working with type and value level headers.
+--
+-- In particular, this module exports a datatype, 'HeaderName' which is
+-- meant to be used with @DataKinds@ providing one type, e.g. ''Accept' for
+-- every common header name (and an override one 'CustomHeader'). It also
+-- exports 'Sing' values for each 'HeaderName'-kinded type each merely
+-- being the name of that type prepended with @S@.
+--
+-- Finally, it exports a set of type synonms for each 'HeaderName'-kinded
+-- type so that they can be referenced without the quote prefix @'@.
 module Network.HTTP.Kinder.Header.Definitions where
 
 import qualified Data.CaseInsensitive     as CI
@@ -20,12 +29,170 @@ import qualified Data.Text                as T
 -- they may contain 'Symbol' values which do not exist. Instead, we can get
 -- almost the same effect through an existential which holds a singleton at
 -- the 'HeaderName' kind
+--
+-- Note that while the Haddocks show this as taking any 'Sing' type it is
+-- actually constrained only to have 'Sing's of kind 'HeaderName'.
 data SomeHeaderName where
   SomeHeaderName :: forall (h :: HeaderName) . Sing h -> SomeHeaderName
 
 instance Show SomeHeaderName where
   show (SomeHeaderName h) = "SomeHeaderName " ++ headerName h
 
+-- | Extract a string-like representation of a 'HeaderName' 'Sing'.
+headerName :: forall s (h :: HeaderName) . IsString s => Sing h -> s
+headerName h =
+  case h of
+    SCustomHeader sym -> withKnownSymbol sym (fromString $ symbolVal sym)
+    SAccept -> "Accept"
+    SAcceptCharset -> "Accept-Charset"
+    SAcceptEncoding -> "Accept-Encoding"
+    SAcceptLanguage -> "Accept-Language"
+    SAcceptPatch -> "Accept-Patch"
+    SAcceptRanges -> "Accept-Ranges"
+    SAccessControlAllowCredentials -> "Access-Control-Allow-Credentials"
+    SAccessControlAllowHeaders -> "Access-Control-Allow-Headers"
+    SAccessControlAllowMethods -> "Access-Control-Allow-Methods"
+    SAccessControlAllowOrigin -> "Access-Control-Allow-Origin"
+    SAccessControlExposeHeaders -> "Access-Control-Expose-Headers"
+    SAccessControlMaxAge -> "Access-Control-Max-Age"
+    SAccessControlRequestHeaders -> "Access-Control-Request-Headers"
+    SAccessControlRequestMethod -> "Access-Control-Request-Method"
+    SAge -> "Age"
+    SAllow -> "Allow"
+    SAuthorization -> "Authorization"
+    SCacheControl -> "Cache-Control"
+    SConnection -> "Connection"
+    SContentDisposition -> "Content-Disposition"
+    SContentEncoding -> "Content-Encoding"
+    SContentLanguage -> "Content-Language"
+    SContentLength -> "Content-Length"
+    SContentLocation -> "Content-Location"
+    SContentRange -> "Content-Range"
+    SContentSecurityPolicy -> "Content-Security-Policy"
+    SContentType -> "Content-Type"
+    SCookie -> "Cookie"
+    SDate -> "Date"
+    SETag -> "ETag"
+    SExpect -> "Expect"
+    SExpires -> "Expires"
+    SFrom -> "From"
+    SHost -> "Host"
+    SIfMatch -> "If-Match"
+    SIfModifiedSince -> "If-Modified-Since"
+    SIfNoneMatch -> "If-None-Match"
+    SIfRange -> "If-Range"
+    SIfUnmodifiedSince -> "If-Unmodified-Since"
+    SLastModified -> "Last-Modified"
+    SLink -> "Link"
+    SLocation -> "Location"
+    SMaxForwards -> "Max-Forwards"
+    SOrigin -> "Origin"
+    SPragma -> "Pragma"
+    SProxyAuthenticate -> "Proxy-Authenticate"
+    SProxyAuthorization -> "Proxy-Authorization"
+    SPublicKeyPins -> "Public-Key-Pins"
+    SRange -> "Range"
+    SReferer -> "Referer"
+    SRetryAfter -> "Retry-After"
+    SSetCookie -> "Set-Cookie"
+    SStrictTransportSecurity -> "Strict-Transport-Security"
+    STE -> "TE"
+    STrailer -> "Trailer"
+    STransferEncoding -> "Transfer-Encoding"
+    SUpgrade -> "Upgrade"
+    SUserAgent -> "User-Agent"
+    SVary -> "Vary"
+    SVia -> "Via"
+    SWWWAuthenticate -> "WWW-Authenticate"
+    SWarning -> "Warning"
+    SXCsrfToken -> "X-Csrf-Token"
+    SXForwardedFor -> "X-Forwarded-For"
+    SXForwardedHost -> "X-Forwarded-Host"
+    SXForwardedProto -> "X-Forwarded-Proto"
+
+-- | Construct a 'HeaderType' 'Sing' from a string representation. This
+-- will try to use a standard header type if possible or will default to
+-- 'CustomHeader'.
+nameHeader :: CI.CI Text -> SomeHeaderName
+nameHeader n =
+  case n of
+    "Accept" -> SomeHeaderName SAccept
+    "Accept-Charset" -> SomeHeaderName SAcceptCharset
+    "Accept-Encoding" -> SomeHeaderName SAcceptEncoding
+    "Accept-Language" -> SomeHeaderName SAcceptLanguage
+    "Accept-Patch" -> SomeHeaderName SAcceptPatch
+    "Accept-Ranges" -> SomeHeaderName SAcceptRanges
+    "Access-Control-Allow-Credentials" -> SomeHeaderName SAccessControlAllowCredentials
+    "Access-Control-Allow-Headers" -> SomeHeaderName SAccessControlAllowHeaders
+    "Access-Control-Allow-Methods" -> SomeHeaderName SAccessControlAllowMethods
+    "Access-Control-Allow-Origin" -> SomeHeaderName SAccessControlAllowOrigin
+    "Access-Control-Expose-Headers" -> SomeHeaderName SAccessControlExposeHeaders
+    "Access-Control-Max-Age" -> SomeHeaderName SAccessControlMaxAge
+    "Access-Control-Request-Headers" -> SomeHeaderName SAccessControlRequestHeaders
+    "Access-Control-Request-Method" -> SomeHeaderName SAccessControlRequestMethod
+    "Age" -> SomeHeaderName SAge
+    "Allow" -> SomeHeaderName SAllow
+    "Authorization" -> SomeHeaderName SAuthorization
+    "Cache-Control" -> SomeHeaderName SCacheControl
+    "Connection" -> SomeHeaderName SConnection
+    "Content-Disposition" -> SomeHeaderName SContentDisposition
+    "Content-Encoding" -> SomeHeaderName SContentEncoding
+    "Content-Language" -> SomeHeaderName SContentLanguage
+    "Content-Length" -> SomeHeaderName SContentLength
+    "Content-Location" -> SomeHeaderName SContentLocation
+    "Content-Range" -> SomeHeaderName SContentRange
+    "Content-Security-Policy" -> SomeHeaderName SContentSecurityPolicy
+    "Content-Type" -> SomeHeaderName SContentType
+    "Cookie" -> SomeHeaderName SCookie
+    "Date" -> SomeHeaderName SDate
+    "ETag" -> SomeHeaderName SETag
+    "Expect" -> SomeHeaderName SExpect
+    "Expires" -> SomeHeaderName SExpires
+    "From" -> SomeHeaderName SFrom
+    "Host" -> SomeHeaderName SHost
+    "If-Match" -> SomeHeaderName SIfMatch
+    "If-Modified-Since" -> SomeHeaderName SIfModifiedSince
+    "If-None-Match" -> SomeHeaderName SIfNoneMatch
+    "If-Range" -> SomeHeaderName SIfRange
+    "If-Unmodified-Since" -> SomeHeaderName SIfUnmodifiedSince
+    "Last-Modified" -> SomeHeaderName SLastModified
+    "Link" -> SomeHeaderName SLink
+    "Location" -> SomeHeaderName SLocation
+    "Max-Forwards" -> SomeHeaderName SMaxForwards
+    "Origin" -> SomeHeaderName SOrigin
+    "Pragma" -> SomeHeaderName SPragma
+    "Proxy-Authenticate" -> SomeHeaderName SProxyAuthenticate
+    "Proxy-Authorization" -> SomeHeaderName SProxyAuthorization
+    "Public-Key-Pins" -> SomeHeaderName SPublicKeyPins
+    "Range" -> SomeHeaderName SRange
+    "Referer" -> SomeHeaderName SReferer
+    "Retry-After" -> SomeHeaderName SRetryAfter
+    "Set-Cookie" -> SomeHeaderName SSetCookie
+    "Strict-Transport-Security" -> SomeHeaderName SStrictTransportSecurity
+    "TE" -> SomeHeaderName STE
+    "Trailer" -> SomeHeaderName STrailer
+    "Transfer-Encoding" -> SomeHeaderName STransferEncoding
+    "Upgrade" -> SomeHeaderName SUpgrade
+    "User-Agent" -> SomeHeaderName SUserAgent
+    "Vary" -> SomeHeaderName SVary
+    "Via" -> SomeHeaderName SVia
+    "WWW-Authenticate" -> SomeHeaderName SWWWAuthenticate
+    "Warning" -> SomeHeaderName SWarning
+    "X-Csrf-Token" -> SomeHeaderName SXCsrfToken
+    "X-Forwarded-For" -> SomeHeaderName SXForwardedFor
+    "X-Forwarded-Host" -> SomeHeaderName SXForwardedHost
+    "X-Forwarded-Proto" -> SomeHeaderName SXForwardedProto
+    other ->
+      case toSing (T.unpack (CI.original other)) :: SomeSing ('KProxy :: KProxy Symbol) of
+        SomeSing s -> SomeHeaderName (SCustomHeader s)
+
+-- | A data type representing names describing headers in an HTTP request.
+-- But, much more importantly, with @DataKinds@ this becomes a kind
+-- describing types one for each header name.
+--
+-- It's worth noting that values of this type can be had, but one branch,
+-- 'CustomHeader' will not work since it requires 'Symbol' values which
+-- cannot be had.
 data HeaderName
 
   ---- WILDCARD HEADER NAMES
@@ -497,150 +664,6 @@ type XCsrfToken = 'XCsrfToken
 type XForwardedFor = 'XForwardedFor
 type XForwardedHost = 'XForwardedHost
 type XForwardedProto = 'XForwardedProto
-
-headerName :: forall s (h :: HeaderName) . IsString s => Sing h -> s
-headerName h =
-  case h of
-    SCustomHeader sym -> withKnownSymbol sym (fromString $ symbolVal sym)
-    SAccept -> "Accept"
-    SAcceptCharset -> "Accept-Charset"
-    SAcceptEncoding -> "Accept-Encoding"
-    SAcceptLanguage -> "Accept-Language"
-    SAcceptPatch -> "Accept-Patch"
-    SAcceptRanges -> "Accept-Ranges"
-    SAccessControlAllowCredentials -> "Access-Control-Allow-Credentials"
-    SAccessControlAllowHeaders -> "Access-Control-Allow-Headers"
-    SAccessControlAllowMethods -> "Access-Control-Allow-Methods"
-    SAccessControlAllowOrigin -> "Access-Control-Allow-Origin"
-    SAccessControlExposeHeaders -> "Access-Control-Expose-Headers"
-    SAccessControlMaxAge -> "Access-Control-Max-Age"
-    SAccessControlRequestHeaders -> "Access-Control-Request-Headers"
-    SAccessControlRequestMethod -> "Access-Control-Request-Method"
-    SAge -> "Age"
-    SAllow -> "Allow"
-    SAuthorization -> "Authorization"
-    SCacheControl -> "Cache-Control"
-    SConnection -> "Connection"
-    SContentDisposition -> "Content-Disposition"
-    SContentEncoding -> "Content-Encoding"
-    SContentLanguage -> "Content-Language"
-    SContentLength -> "Content-Length"
-    SContentLocation -> "Content-Location"
-    SContentRange -> "Content-Range"
-    SContentSecurityPolicy -> "Content-Security-Policy"
-    SContentType -> "Content-Type"
-    SCookie -> "Cookie"
-    SDate -> "Date"
-    SETag -> "ETag"
-    SExpect -> "Expect"
-    SExpires -> "Expires"
-    SFrom -> "From"
-    SHost -> "Host"
-    SIfMatch -> "If-Match"
-    SIfModifiedSince -> "If-Modified-Since"
-    SIfNoneMatch -> "If-None-Match"
-    SIfRange -> "If-Range"
-    SIfUnmodifiedSince -> "If-Unmodified-Since"
-    SLastModified -> "Last-Modified"
-    SLink -> "Link"
-    SLocation -> "Location"
-    SMaxForwards -> "Max-Forwards"
-    SOrigin -> "Origin"
-    SPragma -> "Pragma"
-    SProxyAuthenticate -> "Proxy-Authenticate"
-    SProxyAuthorization -> "Proxy-Authorization"
-    SPublicKeyPins -> "Public-Key-Pins"
-    SRange -> "Range"
-    SReferer -> "Referer"
-    SRetryAfter -> "Retry-After"
-    SSetCookie -> "Set-Cookie"
-    SStrictTransportSecurity -> "Strict-Transport-Security"
-    STE -> "TE"
-    STrailer -> "Trailer"
-    STransferEncoding -> "Transfer-Encoding"
-    SUpgrade -> "Upgrade"
-    SUserAgent -> "User-Agent"
-    SVary -> "Vary"
-    SVia -> "Via"
-    SWWWAuthenticate -> "WWW-Authenticate"
-    SWarning -> "Warning"
-    SXCsrfToken -> "X-Csrf-Token"
-    SXForwardedFor -> "X-Forwarded-For"
-    SXForwardedHost -> "X-Forwarded-Host"
-    SXForwardedProto -> "X-Forwarded-Proto"
-
-nameHeader :: CI.CI Text -> SomeHeaderName
-nameHeader n =
-  case n of
-    "Accept" -> SomeHeaderName SAccept
-    "Accept-Charset" -> SomeHeaderName SAcceptCharset
-    "Accept-Encoding" -> SomeHeaderName SAcceptEncoding
-    "Accept-Language" -> SomeHeaderName SAcceptLanguage
-    "Accept-Patch" -> SomeHeaderName SAcceptPatch
-    "Accept-Ranges" -> SomeHeaderName SAcceptRanges
-    "Access-Control-Allow-Credentials" -> SomeHeaderName SAccessControlAllowCredentials
-    "Access-Control-Allow-Headers" -> SomeHeaderName SAccessControlAllowHeaders
-    "Access-Control-Allow-Methods" -> SomeHeaderName SAccessControlAllowMethods
-    "Access-Control-Allow-Origin" -> SomeHeaderName SAccessControlAllowOrigin
-    "Access-Control-Expose-Headers" -> SomeHeaderName SAccessControlExposeHeaders
-    "Access-Control-Max-Age" -> SomeHeaderName SAccessControlMaxAge
-    "Access-Control-Request-Headers" -> SomeHeaderName SAccessControlRequestHeaders
-    "Access-Control-Request-Method" -> SomeHeaderName SAccessControlRequestMethod
-    "Age" -> SomeHeaderName SAge
-    "Allow" -> SomeHeaderName SAllow
-    "Authorization" -> SomeHeaderName SAuthorization
-    "Cache-Control" -> SomeHeaderName SCacheControl
-    "Connection" -> SomeHeaderName SConnection
-    "Content-Disposition" -> SomeHeaderName SContentDisposition
-    "Content-Encoding" -> SomeHeaderName SContentEncoding
-    "Content-Language" -> SomeHeaderName SContentLanguage
-    "Content-Length" -> SomeHeaderName SContentLength
-    "Content-Location" -> SomeHeaderName SContentLocation
-    "Content-Range" -> SomeHeaderName SContentRange
-    "Content-Security-Policy" -> SomeHeaderName SContentSecurityPolicy
-    "Content-Type" -> SomeHeaderName SContentType
-    "Cookie" -> SomeHeaderName SCookie
-    "Date" -> SomeHeaderName SDate
-    "ETag" -> SomeHeaderName SETag
-    "Expect" -> SomeHeaderName SExpect
-    "Expires" -> SomeHeaderName SExpires
-    "From" -> SomeHeaderName SFrom
-    "Host" -> SomeHeaderName SHost
-    "If-Match" -> SomeHeaderName SIfMatch
-    "If-Modified-Since" -> SomeHeaderName SIfModifiedSince
-    "If-None-Match" -> SomeHeaderName SIfNoneMatch
-    "If-Range" -> SomeHeaderName SIfRange
-    "If-Unmodified-Since" -> SomeHeaderName SIfUnmodifiedSince
-    "Last-Modified" -> SomeHeaderName SLastModified
-    "Link" -> SomeHeaderName SLink
-    "Location" -> SomeHeaderName SLocation
-    "Max-Forwards" -> SomeHeaderName SMaxForwards
-    "Origin" -> SomeHeaderName SOrigin
-    "Pragma" -> SomeHeaderName SPragma
-    "Proxy-Authenticate" -> SomeHeaderName SProxyAuthenticate
-    "Proxy-Authorization" -> SomeHeaderName SProxyAuthorization
-    "Public-Key-Pins" -> SomeHeaderName SPublicKeyPins
-    "Range" -> SomeHeaderName SRange
-    "Referer" -> SomeHeaderName SReferer
-    "Retry-After" -> SomeHeaderName SRetryAfter
-    "Set-Cookie" -> SomeHeaderName SSetCookie
-    "Strict-Transport-Security" -> SomeHeaderName SStrictTransportSecurity
-    "TE" -> SomeHeaderName STE
-    "Trailer" -> SomeHeaderName STrailer
-    "Transfer-Encoding" -> SomeHeaderName STransferEncoding
-    "Upgrade" -> SomeHeaderName SUpgrade
-    "User-Agent" -> SomeHeaderName SUserAgent
-    "Vary" -> SomeHeaderName SVary
-    "Via" -> SomeHeaderName SVia
-    "WWW-Authenticate" -> SomeHeaderName SWWWAuthenticate
-    "Warning" -> SomeHeaderName SWarning
-    "X-Csrf-Token" -> SomeHeaderName SXCsrfToken
-    "X-Forwarded-For" -> SomeHeaderName SXForwardedFor
-    "X-Forwarded-Host" -> SomeHeaderName SXForwardedHost
-    "X-Forwarded-Proto" -> SomeHeaderName SXForwardedProto
-    other ->
-      case toSing (T.unpack (CI.original other)) :: SomeSing ('KProxy :: KProxy Symbol) of
-        SomeSing s -> SomeHeaderName (SCustomHeader s)
 
 -- ----------------------------------------------------------------------------
 -- These could be generated by TH, but we're inlining them!
