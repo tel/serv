@@ -23,8 +23,8 @@ library
     Network.HTTP.Kinder.Header.Serialization
     -- Network.HTTP.Kinder.MediaType
     -- Network.HTTP.Kinder.Query
-    -- Network.HTTP.Kinder.Status
-    -- Network.HTTP.Kinder.URI
+    Network.HTTP.Kinder.Status
+    Network.HTTP.Kinder.URI
     Network.HTTP.Kinder.Verb
 
   build-depends:       base >= 4.7 && < 5
