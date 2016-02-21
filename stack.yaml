@@ -1,6 +1,7 @@
 resolver: lts-5.0
 packages:
 - serv
+- http-kinder
 extra-deps: []
 flags: {}
 extra-package-dbs: []
