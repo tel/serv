@@ -15,7 +15,156 @@
 --
 -- Finally, it exports a set of type synonms for each 'HeaderName'-kinded
 -- type so that they can be referenced without the quote prefix @'@.
-module Network.HTTP.Kinder.Header.Definitions where
+module Network.HTTP.Kinder.Header.Definitions (
+
+  -- * Functions and types for working with 'HeaderName' 'Sing's
+    SomeHeaderName (SomeHeaderName)
+  , headerName
+  , nameHeader
+
+  -- * The 'HeaderName' type/kind
+  , HeaderName (..)
+  , Sing (
+      SCustomHeader
+    , SAccept
+    , SAcceptCharset
+    , SAcceptEncoding
+    , SAcceptLanguage
+    , SAcceptPatch
+    , SAcceptRanges
+    , SAccessControlAllowCredentials
+    , SAccessControlAllowHeaders
+    , SAccessControlAllowMethods
+    , SAccessControlAllowOrigin
+    , SAccessControlExposeHeaders
+    , SAccessControlMaxAge
+    , SAccessControlRequestHeaders
+    , SAccessControlRequestMethod
+    , SAge
+    , SAllow
+    , SAuthorization
+    , SCacheControl
+    , SConnection
+    , SContentDisposition
+    , SContentEncoding
+    , SContentLanguage
+    , SContentLength
+    , SContentLocation
+    , SContentRange
+    , SContentSecurityPolicy
+    , SContentType
+    , SCookie
+    , SDate
+    , SETag
+    , SExpect
+    , SExpires
+    , SFrom
+    , SHost
+    , SIfMatch
+    , SIfModifiedSince
+    , SIfNoneMatch
+    , SIfRange
+    , SIfUnmodifiedSince
+    , SLastModified
+    , SLink
+    , SLocation
+    , SMaxForwards
+    , SOrigin
+    , SPragma
+    , SProxyAuthenticate
+    , SProxyAuthorization
+    , SPublicKeyPins
+    , SRange
+    , SReferer
+    , SRetryAfter
+    , SSetCookie
+    , SStrictTransportSecurity
+    , STE
+    , STrailer
+    , STransferEncoding
+    , SUpgrade
+    , SUserAgent
+    , SVary
+    , SVia
+    , SWWWAuthenticate
+    , SWarning
+    , SXCsrfToken
+    , SXForwardedFor
+    , SXForwardedHost
+    , SXForwardedProto
+  )
+
+  -- * Type synonyms for more convenient use of 'HeaderName's
+
+  , CustomHeader
+  , Accept
+  , AcceptCharset
+  , AcceptEncoding
+  , AcceptLanguage
+  , AcceptPatch
+  , AcceptRanges
+  , AccessControlAllowCredentials
+  , AccessControlAllowHeaders
+  , AccessControlAllowMethods
+  , AccessControlAllowOrigin
+  , AccessControlExposeHeaders
+  , AccessControlMaxAge
+  , AccessControlRequestHeaders
+  , AccessControlRequestMethod
+  , Age
+  , Allow
+  , Authorization
+  , CacheControl
+  , Connection
+  , ContentDisposition
+  , ContentEncoding
+  , ContentLanguage
+  , ContentLength
+  , ContentLocation
+  , ContentRange
+  , ContentSecurityPolicy
+  , ContentType
+  , Cookie
+  , Date
+  , ETag
+  , Expect
+  , Expires
+  , From
+  , Host
+  , IfMatch
+  , IfModifiedSince
+  , IfNoneMatch
+  , IfRange
+  , IfUnmodifiedSince
+  , LastModified
+  , Link
+  , Location
+  , MaxForwards
+  , Origin
+  , Pragma
+  , ProxyAuthenticate
+  , ProxyAuthorization
+  , PublicKeyPins
+  , Range
+  , Referer
+  , RetryAfter
+  , SetCookie
+  , StrictTransportSecurity
+  , TE
+  , Trailer
+  , TransferEncoding
+  , Upgrade
+  , UserAgent
+  , Vary
+  , Via
+  , WWWAuthenticate
+  , Warning
+  , XCsrfToken
+  , XForwardedFor
+  , XForwardedHost
+  , XForwardedProto
+
+) where
 
 import qualified Data.CaseInsensitive     as CI
 import           Data.Singletons
@@ -598,6 +747,7 @@ data HeaderName
     --
     --     WWW-Authenticate: Basic
 
+type CustomHeader s = 'CustomHeader s
 type Accept = 'Accept
 type AcceptCharset = 'AcceptCharset
 type AcceptEncoding = 'AcceptEncoding
