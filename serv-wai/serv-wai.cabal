@@ -1,4 +1,4 @@
-name:                serv
+name:                serv-wai
 version:             0.1.0.0
 synopsis:            Dependently typed API server framework
 description:         Please see README.md

@@ -25,7 +25,7 @@ module Network.HTTP.Kinder.Query (
 
   -- ** Types for encoding/decoding request queries
   , QueryKeyState (..)
-  , Found (..)
+  , Flag (..)
 
   -- * Extra serialization utilities
   , queryEncodePair
@@ -45,9 +45,9 @@ import           Network.HTTP.Kinder.Common
 -- Data Types
 -- ----------------------------------------------------------------------------
 
--- | 'Found' provides semantics for query parameters which may merely exist
+-- | 'Flag' provides semantics for query parameters which may merely exist
 -- without actually storing a value---"flag" semantics.
-data Found = Found | NotFound
+data Flag = Here | NotHere
 
 -- | 'QueryKeyState' describes the state of a given key within a query-map.
 -- The key may be complete absent, it may exist without a value, or it may
@@ -99,9 +99,9 @@ queryEncodePair s a =
 instance QueryEncode s a => QueryEncode s (QueryKeyState a) where
   queryEncode p v = v >>= queryEncode p
 
-instance QueryEncode s Found where
-  queryEncode _ Found = QueryKeyPresent
-  queryEncode _ NotFound = QueryKeyAbsent
+instance QueryEncode s Flag where
+  queryEncode _ Here = QueryKeyPresent
+  queryEncode _ NotHere = QueryKeyAbsent
 
 instance QueryEncode s (Raw Text) where
   queryEncode _ (Raw t) = QueryKeyValued t
@@ -130,9 +130,9 @@ instance QueryDecode s a => QueryDecode s (QueryKeyState a) where
 -- | This instance act "strictly" in that if the key is present but given
 -- a value then it will fail to parse for this type. To be lenient use
 -- 'QueryKeyState' directly.
-instance QueryDecode s Found where
-  queryDecode _ QueryKeyAbsent = Right NotFound
-  queryDecode _ QueryKeyPresent = Right Found
+instance QueryDecode s Flag where
+  queryDecode _ QueryKeyAbsent = Right NotHere
+  queryDecode _ QueryKeyPresent = Right Here
   queryDecode _ QueryKeyValued {} = Left "expected a flag query param, found a value"
 
 instance QueryDecode s (Raw Text) where

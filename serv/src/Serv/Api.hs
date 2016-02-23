@@ -9,7 +9,37 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 -- | Types, but really kinds, which represent the structure of an API.
-module Serv.Api where
+module Serv.Api (
+
+  -- * API types/kinds
+
+    Api (..)
+  , Path (..)
+  , Handler (..)
+  , Output (..)
+  , Body (..)
+
+  -- ** Syntax sugar
+  , (:::) (..)
+
+  -- * Type aliases (eliminates need for single-quotation)
+
+  -- ** 'Api'
+  , Endpoint, OneOf, Abstract, (:>)
+
+  -- ** 'Path'
+  , Const, HeaderAs, Seg, Header, Wildcard, Cors
+
+  -- ** 'Handler'
+  , Method, CaptureBody, CaptureHeaders, CaptureQuery
+
+  -- ** 'Output'
+  , Respond
+
+  -- ** 'Body'
+  , HasBody, Empty
+
+) where
 
 import           Data.Singletons
 import           Data.Singletons.TypeLits
@@ -22,14 +52,12 @@ type a ::: b = '( a, b )
 infixr 6 :::
 
 -- | 'Handler' responses may opt to include a response body or not.
---
--- Return a response body by specifying a set of content-types
--- and a value to derive the body from.
---
--- A response with an empty body
-data Body star where
-  HasBody :: [star] -> star -> Body star
-  Empty :: Body star
+data Body star
+  = HasBody [star] star
+  -- ^ Return a response body by specifying a set of content-types and
+  -- a value to derive the body from.
+  | Empty
+  -- ^ A response with an empty body
 
 data instance Sing (b :: Body *)
   = forall ts a . b ~ HasBody ts a => SHasBody (Sing ts) (Sing a)
@@ -46,9 +74,8 @@ type Empty = 'Empty
 
 
 
-
-data Output star where
-  Respond :: [ (HeaderName, star) ] -> Body star -> Output star
+-- | Describes an output from an API under a given status.
+data Output star = Respond [ (HeaderName, star) ] (Body star)
 
 data instance Sing (o :: Output *)
   = forall ts b . o ~ Respond ts b => SRespond (Sing ts) (Sing b)
@@ -64,20 +91,18 @@ type Respond hdrs body = 'Respond hdrs body
 -- | A 'Handler' is a single HTTP verb response handled at a given 'Endpoint'.
 -- In order to complete a 'Handler''s operation it may demand data from the
 -- request such as headers or the request body.
---
--- A "core" 'Handler' definition which describes the 'Verb' it responds
--- to along with a set of response headers and a chance to attach a
--- response 'Body'.
---
--- Augment a 'Handler' to include requirements of a request body.
---
--- Augment a 'Handler' to include requirements of request header values.
---
-data Handler star where
-  Method :: Verb -> [ (Status, Output star) ] -> Handler star
-  CaptureBody :: [star] -> star -> Handler star -> Handler star
-  CaptureHeaders :: [ (HeaderName, star) ] -> Handler star -> Handler star
-  CaptureQuery :: [ (Symbol, star) ] -> Handler star -> Handler star
+data Handler star
+  = Method Verb [(Status, Output star)]
+    -- ^ A "core" 'Handler' definition which describes the 'Verb' it
+    -- responds to along with a set of response headers and a chance to
+    -- attach a response 'Body'.
+  | CaptureBody [star] star (Handler star)
+    -- ^ Augment a 'Handler' to include requirements of a request body.
+  | CaptureHeaders [(HeaderName, star)] (Handler star)
+    -- ^ Augment a 'Handler' to include requirements of request header values.
+  | CaptureQuery [(Symbol, star)] (Handler star)
+    -- ^ Augment a 'Handler' to include requirements of the request query
+    -- string
 
 data instance Sing (h :: Handler *)
   = forall v ts . h ~ Method v ts => SMethod (Sing v) (Sing ts)
@@ -106,29 +131,23 @@ type CaptureQuery query method = 'CaptureQuery query method
 
 
 -- | "Generalized" path segments match against data in the request.
---
--- Matches if the request has a non-empty remaining path and
--- the next segment matches exactly
---
--- Matches if the request has a given header and its value
--- matches exactly (!)
---
--- Matches if the request has a non-empty remaining path.
--- The next segment is "captured", provided to the server implementation.
---
--- Always matches, "capturing" the value of a header, or 'Nothing' if
--- the header fails to exist.
---
--- Always matches, "captures" the remaining path segments as a list
--- of text values. May just capture the empty list.
-
-data Path star where
-  Const :: Symbol -> Path star
-  HeaderAs :: HeaderName -> Symbol -> Path star
-  Seg :: Symbol -> star -> Path star
-  Header :: HeaderName -> star -> Path star
-  Wildcard :: Path star
-  Cors :: star -> Path star
+data Path star
+  = Const Symbol
+    -- ^ Matches if the request has a non-empty remaining path and the next
+    -- segment matches exactly
+  | HeaderAs HeaderName Symbol
+    -- ^ Matches if the request has a given header and its value matches
+    -- exactly (!)
+  | Seg Symbol star
+    -- ^ Matches if the request has a non-empty remaining path. The next
+    -- segment is "captured", provided to the server implementation.
+  | Header HeaderName star
+    -- ^ Always matches, "capturing" the value of a header, or 'Nothing' if
+    -- the header fails to exist.
+  | Wildcard
+    -- ^ Always matches, "captures" the remaining path segments as a list
+    -- of text values. May just capture the empty list.
+  | Cors star
 
 data instance Sing (p :: Path *)
   = forall s . p ~ Const s => SConst (Sing s)
@@ -168,34 +187,30 @@ type Cors ty = 'Cors ty
 
 -- | 'Api's describe collections of HTTP endpoints accessible at
 -- various segmented 'Path's.
---
--- An 'Endpoint' describes a root API which responds
--- only to requests with empty paths. It matches on HTTP 'Method's
--- which demand 'Verb's, 'HeaderName's, and 'Body's.
---
--- 'Endpoint' differs from 'OneOf' in that it can only choose between
--- possible methods and automatically provides an 'OPTIONS' response.
---
--- 'Api's consist of many sub-'Api's which are attempted sequentially.
--- @'OneOf' choices@ expresses this sequential search along a set of sub-'Api'
--- @choices@.
---
--- 'Raw' enables the use of standard 'Wai.Application's within an 'Api'.
--- These cannot be examined further through type analysis, but they are a
--- common use case.
---
--- Qualify an API using a series of 'Path' qualifiers.
-data Api star where
-  Endpoint :: star -> [Handler star] -> Api star
-  OneOf :: [Api star] -> Api star
-  Raw :: Api star
-  (:>) :: Path star -> Api star -> Api star
+data Api star
+  = Endpoint star [Handler star]
+    -- ^ An 'Endpoint' describes a root API which responds only to requests
+    -- with empty paths. It matches on HTTP 'Method's which demand 'Verb's,
+    -- 'HeaderName's, and 'Body's.
+    --
+    -- 'Endpoint' differs from 'OneOf' in that it can only choose between
+    -- possible methods and automatically provides an 'OPTIONS' response.
+  | OneOf [Api star]
+    -- ^ 'Api's consist of many sub-'Api's which are attempted sequentially.
+    -- @'OneOf' choices@ expresses this sequential search along a set of
+    -- sub-'Api' @choices@.
+  | Abstract
+    -- ^ 'Abstract' enables the use of standard 'Wai.Application's within an
+    -- 'Api'. These cannot be examined further through type analysis, but
+    -- they are a common use case.
+  | Path star :> Api star
+    -- ^ Qualify an API using a series of 'Path' "segments"
 infixr 5 :>
 
 data instance Sing (a :: Api *)
   = forall t ts . a ~ Endpoint t ts => SEndpoint (Sing t) (Sing ts)
   | forall ts . a ~ OneOf ts => SOneOf (Sing ts)
-  | a ~ Raw => SRaw
+  | a ~ Abstract => SAbstract
   | forall p k . a ~ (p :> k) => Sing p :%> Sing k
 
 instance (SingI t, SingI ts) => SingI ('Endpoint t ts :: Api *) where
@@ -204,14 +219,14 @@ instance (SingI t, SingI ts) => SingI ('Endpoint t ts :: Api *) where
 instance SingI ts => SingI ('OneOf ts :: Api *) where
   sing = SOneOf sing
 
-instance SingI (Raw :: Api *) where
-  sing = SRaw
+instance SingI (Abstract :: Api *) where
+  sing = SAbstract
 
 instance (SingI p, SingI k) => SingI (p :> k :: Api *) where
   sing = sing :%> sing
 
 type Endpoint ann ms = 'Endpoint ann ms
 type OneOf apis = 'OneOf apis
-type Raw = 'Raw
+type Abstract = 'Abstract
 type a :> b = a ':> b
 

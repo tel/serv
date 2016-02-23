@@ -1,7 +1,10 @@
 name:                http-kinder
 version:             0.1.0.0
 synopsis:            Generic kinds and types for working with HTTP
-description:         Please see README.md
+description:
+  Types and kinds for describing HTTP requests and responsts.
+  .
+  See the README for more details.
 homepage:            http://github.com/tel/serv#readme
 license:             BSD3
 license-file:        LICENSE
@@ -16,7 +19,7 @@ library
   hs-source-dirs:      src
   exposed-modules:
 
-    -- Network.HTTP.Kinder
+    Network.HTTP.Kinder
     Network.HTTP.Kinder.Common
     Network.HTTP.Kinder.Header
     Network.HTTP.Kinder.Header.Definitions
