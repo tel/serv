@@ -40,9 +40,12 @@ import           Data.Singletons
 import           Data.Text                              (Text)
 import qualified Data.Text                              as Text
 import qualified Data.Text.Encoding                     as Text
-import           Network.HTTP.Kinder.Header.Definitions
+import           Data.Time
 import           Network.HTTP.Kinder.Common
-import           Network.HTTP.Media           (MediaType, Quality, parseQuality, parseAccept)
+import           Network.HTTP.Kinder.Header.Definitions
+import           Network.HTTP.Kinder.Verb
+import           Network.HTTP.Media                     (MediaType, Quality)
+import qualified Network.HTTP.Media                     as Media
 
 -- | Determines a 'Text' representation for some value to be encoded as
 -- a value of a given 'HeaderName'. Any proxy can be passed as the first
@@ -106,8 +109,46 @@ uniqueSet s = headerEncode s . Set.fromList
 instance HeaderEncode n (Raw Text) where
   headerEncode _ (Raw t) = Just t
 
+instance HeaderEncode 'Allow (Set Verb) where
+  headerEncode _ = displaySetOpt . Set.map verbName
+
+instance HeaderEncode 'Allow [Verb] where
+  headerEncode = uniqueSet
+
+instance HeaderEncode 'AccessControlExposeHeaders (Set SomeHeaderName) where
+  headerEncode _ = displaySetOpt . Set.map headerName' where
+    headerName' (SomeHeaderName h) = headerName h
+
+instance HeaderEncode 'AccessControlExposeHeaders [SomeHeaderName] where
+  headerEncode = uniqueSet
+
+instance HeaderEncode 'AccessControlAllowHeaders (Set SomeHeaderName) where
+  headerEncode _ = displaySetOpt . Set.map headerName' where
+    headerName' (SomeHeaderName h) = headerName h
+
+instance HeaderEncode 'AccessControlAllowHeaders [SomeHeaderName] where
+  headerEncode = uniqueSet
+
+instance HeaderEncode 'AccessControlMaxAge NominalDiffTime where
+  headerEncode _ ndt = Just $ Text.pack (show (round ndt :: Int))
+
+instance HeaderEncode 'AccessControlAllowOrigin Text where
+  headerEncode _ org = Just org
+
+instance HeaderEncode 'AccessControlAllowMethods (Set Verb) where
+  headerEncode _ = displaySetOpt . Set.map verbName
+
+instance HeaderEncode 'AccessControlAllowMethods [Verb] where
+  headerEncode = uniqueSet
+
 instance HeaderEncode 'AccessControlAllowCredentials Bool where
   headerEncode _ ok = Just (if ok then "true" else "false")
+
+instance HeaderEncode 'ContentType MediaType where
+  headerEncode _ mt =
+    case Text.decodeUtf8' (Media.renderHeader mt) of
+      Left _err -> Nothing
+      Right txt -> Just txt
 
 -- | Any value can be forced as optional if desired
 instance HeaderEncode h t => HeaderEncode h (Maybe t) where
@@ -131,13 +172,13 @@ withDefault _ f (Just a) = f a
 instance HeaderDecode Accept [Quality MediaType] where
   headerDecode _ = withDefault [] parser where
     parser txt =
-      case parseQuality (Text.encodeUtf8 txt) of
+      case Media.parseQuality (Text.encodeUtf8 txt) of
         Nothing -> Left "malformed accept header"
         Just mts -> Right mts
 
 instance HeaderDecode ContentType MediaType where
   headerDecode _ = required $ \txt ->
-    case parseAccept (Text.encodeUtf8 txt) of
+    case Media.parseAccept (Text.encodeUtf8 txt) of
       Nothing -> Left "malformed content type"
       Just ct -> Right ct
 

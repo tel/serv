@@ -186,6 +186,21 @@ data SomeHeaderName where
 instance Show SomeHeaderName where
   show (SomeHeaderName h) = "SomeHeaderName " ++ headerName h
 
+-- | Equality is slightly strange for 'SomeHeaderName'---we equate, e.g.,
+-- @'Accept'@ and @'CustomHeader' "accept"@.
+instance Eq SomeHeaderName where
+  a == b = proj a == proj b where
+    proj :: SomeHeaderName -> CI.CI String
+    proj (SomeHeaderName h) = headerName h
+
+instance Ord SomeHeaderName where
+  a `compare` b = proj a `compare` proj b where
+    proj :: SomeHeaderName -> CI.CI String
+    proj (SomeHeaderName h) = headerName h
+
+instance IsString SomeHeaderName where
+  fromString = parseHeaderName . fromString
+
 -- | Extract a string-like representation of a 'HeaderName' 'Sing'.
 headerName :: forall s (h :: HeaderName) . IsString s => Sing h -> s
 headerName h =
