@@ -1,6 +1,7 @@
 resolver: lts-5.0
 packages:
 - serv
+- serv-wai
 - http-kinder
 extra-deps: []
 flags: {}

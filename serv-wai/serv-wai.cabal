@@ -1,0 +1,95 @@
+name:                serv
+version:             0.1.0.0
+synopsis:            Dependently typed API server framework
+description:         Please see README.md
+homepage:            http://github.com/tel/serv#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Joseph Abrahamson <me@jspha.com>
+maintainer:          me@jspha.com
+copyright:           2015 Joseph Abrahamson
+category:            Web
+build-type:          Simple
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:      src
+  exposed-modules:
+
+    Serv.Api
+    Serv.Api.Annotation
+    Serv.Common
+    Serv.ContentType
+    Serv.Cors
+    Serv.Header
+    Serv.Internal.Api
+    Serv.Internal.Api.Analysis
+    Serv.Internal.Api.Annotation
+    Serv.Internal.Cors
+    Serv.Internal.Header
+    Serv.Internal.Header.Serialization
+    Serv.Internal.MediaType
+    Serv.Internal.Pair
+    Serv.Internal.Query
+    Serv.Internal.RawText
+    Serv.Internal.Rec
+    Serv.Internal.Server
+    Serv.Internal.Server.Config
+    Serv.Internal.Server.Context
+    Serv.Internal.Server.Error
+    Serv.Internal.Server.Monad
+    Serv.Internal.Server.Response
+    Serv.Internal.Server.Type
+    Serv.Internal.StatusCode
+    Serv.Internal.TypeLevel
+    Serv.Internal.URI
+    Serv.Internal.Verb
+    Serv.Server
+    Serv.StatusCode
+    Serv.URI
+
+  build-depends:       base >= 4.7 && < 5
+
+                     , aeson
+                     , bytestring
+                     , case-insensitive
+                     , containers
+                     , http-kinder
+                     , http-media
+                     , http-types
+                     , mtl
+                     , singletons
+                     , tagged
+                     , text
+                     , time
+                     , transformers
+                     , wai
+
+  default-language:    Haskell2010
+
+test-suite serv-test
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             Spec.hs
+  other-modules:
+    Examples.Ex1
+    Examples.Ex2
+  build-depends:       base
+                     , serv
+
+                     , HUnit
+                     , QuickCheck
+                     , tasty
+                     , tasty-ant-xml
+                     , tasty-hunit
+                     , tasty-quickcheck
+                     , text
+                     , wai
+                     , wai-extra
+
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  default-language:    Haskell2010
+
+source-repository head
+  type:     git
+  location: https://github.com/tel/serv
