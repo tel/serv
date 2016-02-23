@@ -21,8 +21,8 @@ module Network.HTTP.Kinder.Header (
 
 ) where
 
-import qualified Network.HTTP.Kinder.Header.Definitions
-import qualified Network.HTTP.Kinder.Header.Serialization (HeaderDecode (..),
+import           Network.HTTP.Kinder.Header.Definitions
+import           Network.HTTP.Kinder.Header.Serialization (HeaderDecode (..),
                                                            HeaderEncode (..),
                                                            headerDecodeBS,
                                                            headerEncodeBS,
