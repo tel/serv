@@ -16,22 +16,9 @@ library
   hs-source-dirs:      src
   exposed-modules:
 
-    Serv.Api
-    Serv.Api.Annotation
-    Serv.Common
-    Serv.ContentType
     Serv.Cors
-    Serv.Header
-    Serv.Internal.Api
-    Serv.Internal.Api.Analysis
-    Serv.Internal.Api.Annotation
     Serv.Internal.Cors
-    Serv.Internal.Header
-    Serv.Internal.Header.Serialization
-    Serv.Internal.MediaType
-    Serv.Internal.Pair
     Serv.Internal.Query
-    Serv.Internal.RawText
     Serv.Internal.Rec
     Serv.Internal.Server
     Serv.Internal.Server.Config
@@ -40,13 +27,9 @@ library
     Serv.Internal.Server.Monad
     Serv.Internal.Server.Response
     Serv.Internal.Server.Type
-    Serv.Internal.StatusCode
     Serv.Internal.TypeLevel
-    Serv.Internal.URI
-    Serv.Internal.Verb
     Serv.Server
-    Serv.StatusCode
-    Serv.URI
+    Serv.Wai.Type
 
   build-depends:       base >= 4.7 && < 5
 
@@ -57,6 +40,7 @@ library
                      , http-kinder
                      , http-media
                      , http-types
+                     , mmorph
                      , mtl
                      , singletons
                      , tagged

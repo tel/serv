@@ -1,7 +1,7 @@
 
-module Serv.Internal.Server.Error where
+module Serv.Wai.Error where
 
-import Data.Set (Set)
+import           Data.Set           (Set)
 import           Serv.Internal.Verb
 
 -- | Errors which arise during the "handling" portion of dealing with a response.

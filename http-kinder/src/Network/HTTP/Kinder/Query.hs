@@ -36,11 +36,12 @@ import           Control.Monad
 import           Data.Singletons.Prelude
 import           Data.Singletons.TypeLits
 import           Data.String
-import           Data.Text                (Text)
-import           Data.Text.Encoding       (encodeUtf8)
+import           Data.Text                  (Text)
+import           Data.Text.Encoding         (encodeUtf8)
 import           GHC.Exts
-import qualified Network.HTTP.Types       as HTTP
 import           Network.HTTP.Kinder.Common
+import qualified Network.HTTP.Types         as HTTP
+import           Network.HTTP.Types.URI     (queryToQueryText)
 
 -- Data Types
 -- ----------------------------------------------------------------------------
