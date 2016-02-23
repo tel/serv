@@ -42,6 +42,7 @@ import qualified Data.Text                              as Text
 import qualified Data.Text.Encoding                     as Text
 import           Network.HTTP.Kinder.Header.Definitions
 import           Network.HTTP.Kinder.Common
+import           Network.HTTP.Media           (MediaType, Quality, parseQuality, parseAccept)
 
 -- | Determines a 'Text' representation for some value to be encoded as
 -- a value of a given 'HeaderName'. Any proxy can be passed as the first
@@ -123,9 +124,22 @@ required _ Nothing = Left "missing header value"
 required f (Just t) = f t
 
 -- | For headers with natural notions of default values.
-withDefault :: a -> (Text -> Either String a) -> Maybe Text -> Either String a
+withDefault :: a -> (Text -> Either String a) -> (Maybe Text -> Either String a)
 withDefault def _ Nothing = Right def
 withDefault _ f (Just a) = f a
+
+instance HeaderDecode Accept [Quality MediaType] where
+  headerDecode _ = withDefault [] parser where
+    parser txt =
+      case parseQuality (Text.encodeUtf8 txt) of
+        Nothing -> Left "malformed accept header"
+        Just mts -> Right mts
+
+instance HeaderDecode ContentType MediaType where
+  headerDecode _ = required $ \txt ->
+    case parseAccept (Text.encodeUtf8 txt) of
+      Nothing -> Left "malformed content type"
+      Just ct -> Right ct
 
 -- | Returns the raw header value
 instance HeaderDecode n (Raw Text) where
