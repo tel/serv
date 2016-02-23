@@ -54,6 +54,7 @@ library
                      , bytestring
                      , case-insensitive
                      , containers
+                     , http-kinder
                      , http-media
                      , http-types
                      , mtl
