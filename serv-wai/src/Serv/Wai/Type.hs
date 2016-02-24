@@ -53,13 +53,17 @@ newtype Server m = Server { runServer :: InContext m ServerResult }
 mapServer :: Monad m => (forall x . m x -> n x) -> Server m -> Server n
 mapServer phi (Server act) = Server (hoist phi act)
 
+-- | A 'Server' which immediately fails with a 'Error.NotFound' error
 notFound :: Monad m => Server m
 notFound = Server (return (RoutingError Error.NotFound))
 
+-- | A 'Server' which immediately fails with a 'Error.MethodNotAllowed'
+-- error
 methodNotAllowed :: Monad m => Set Verb -> Server m
 methodNotAllowed verbs =
   Server (return (RoutingError (Error.MethodNotAllowed verbs)))
 
+-- | A 'Server' which immediately fails with a 'Error.BadRequest' error
 badRequest :: Monad m => Maybe String -> Server m
 badRequest err = Server (return (RoutingError (Error.BadRequest err)))
 
@@ -78,6 +82,22 @@ serverApplication' server xform = do
       RoutingError err -> xform ctx (defaultRoutingErrorResponse err)
       WaiResponse resp -> xform ctx resp
 
+-- | Converts a @'Server' 'IO'@ into a regular Wai 'Application' value. The
+-- most general of the @serverApplication*@ functions, parameterized on
+-- a function interpreting the 'Context' and 'ServerResult' as a Wai
+-- 'Response'. As an invariant, the interpreter will never see an
+-- 'Application' 'ServerResult'---those are handled by this function.
+serverApplication''
+  :: Server IO
+  -> (Context -> ServerResult -> Response)
+  -> Application
+serverApplication'' server xform request respond = do
+  ctx0 <- makeContext request
+  (val, ctx1) <- runStateT (runInContext (runServer server)) ctx0
+  case val of
+    Application app -> app ctx1 (ctxRequest ctx1) respond
+    _ -> respond (xform ctx1 val)
+
 -- | A straightforward way of transforming 'RoutingError' values to Wai
 -- 'Response's. Used by default in 'serverApplication''.
 defaultRoutingErrorResponse :: RoutingError -> Response
@@ -95,22 +115,6 @@ defaultRoutingErrorResponse err =
         (St.httpStatus St.SMethodNotAllowed)
         (catMaybes [headerEncodePair SAllow verbs])
         ""
-
--- | Converts a @'Server' 'IO'@ into a regular Wai 'Application' value. The
--- most general of the @serverApplication*@ functions, parameterized on
--- a function interpreting the 'Context' and 'ServerResult' as a Wai
--- 'Response'. As an invariant, the interpreter will never see an
--- 'Application' 'ServerResult'---those are handled by this function.
-serverApplication''
-  :: Server IO
-  -> (Context -> ServerResult -> Response)
-  -> Application
-serverApplication'' server xform request respond = do
-  ctx0 <- makeContext request
-  (val, ctx1) <- runStateT (runInContext (runServer server)) ctx0
-  case val of
-    Application app -> app ctx1 (ctxRequest ctx1) respond
-    _ -> respond (xform ctx1 val)
 
 data ServerResult
   = RoutingError RoutingError
