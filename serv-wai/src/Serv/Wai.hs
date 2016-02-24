@@ -100,10 +100,14 @@ type family ConstrainHandler h :: Constraint where
 
 type family ConstrainOutputs (os :: [(Status, Output *)]) :: Constraint where
   ConstrainOutputs '[] = ()
-  ConstrainOutputs (s ::: Respond hs Empty ': os) =
-    (AllHeaderEncodes hs, ConstrainOutputs os)
-  ConstrainOutputs (s ::: Respond hs (HasBody ts a) ': os) =
-    (AllMimeEncode a ts, AllHeaderEncodes hs, ConstrainOutputs os)
+  ConstrainOutputs ((s ::: r) ': os) = (ConstrainRespond r, ConstrainOutputs os)
+
+type family ConstrainRespond r :: Constraint where
+  ConstrainRespond (Respond hs b) = (AllHeaderEncodes hs, ConstrainBody b)
+
+type family ConstrainBody b :: Constraint where
+  ConstrainBody Empty = ()
+  ConstrainBody (HasBody ts a) = AllMimeEncode a ts
 
 server :: (Constrain api, Monad m) => Sing api -> Impl m api -> Server m
 server SAbstract mApp = returnServer (fmap Application mApp)
