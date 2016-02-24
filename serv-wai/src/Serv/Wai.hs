@@ -5,7 +5,67 @@
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
 
-module Serv.Wai where
+-- | Build an "implementation" of a given 'Api'-kinded type (e.g. @'Impl'
+-- api@) which describes all of the logic for your server and then convert
+-- it into a 'Server' value and then an 'Application'.
+module Serv.Wai (
+
+  -- * Implement a 'Server'
+    server
+  , Server
+
+  -- ** Server transformation
+
+  -- | Typically you use 'server' to construct a value @'Server' M@ for
+  -- some @M@ specific to your application, either a transformer stack or
+  -- an abstract monad constrained by @mtl@-like typeclasses. If @M@ is not
+  -- 'IO' then 'serverApplication' cannot be used to build an
+  -- 'Application', so instead we must first transform @M@ using a "run"
+  -- function applied to 'mapServer'.
+  --
+  -- For instance, if @M@ is @StateT St IO@ then
+  --
+  -- @
+  --     flip evalStateT s0 :: StateT St IO a -> IO a
+  -- @
+  --
+  -- is a suitable "run" function we could apply
+  -- using 'mapServer' to transform @'Server' M@ into @'Server' 'IO'@.
+
+  , mapServer
+
+  -- ** Execute it as an 'Application'
+  , serverApplication
+  , serverApplication'
+  , serverApplication''
+
+  -- * Constraints and Implementations
+
+  -- | In order to call 'server' we must ensure that our @api :: 'Api'@
+  -- type is decorated with the appropriate constraints and that the
+  -- @'Impl' api@ type properly matches the 'Api'. This is achieved by
+  -- analyzing the types with type-level functions, e.g. the closed type
+  -- families 'Impl' and 'Constrain'.
+  --
+  -- NOTE: Closed type families are rather finnicky as to when they
+  -- actually evaluate, so the factoring of these type families into
+  -- smaller pieces is done by some trial an error.
+
+  , Impl
+  , Constrain
+
+  -- ** Detailed constraints and implementations
+  , AllImpl
+  , AllHandlers
+  , ImplHandler
+
+  , ConstrainEndpoint
+  , ConstrainHandler
+  , ConstrainOutputs
+  , ConstrainRespond
+  , ConstrainBody
+
+) where
 
 import           Control.Monad.Trans
 import qualified Data.ByteString.Lazy          as Sl
@@ -109,6 +169,9 @@ type family ConstrainBody b :: Constraint where
   ConstrainBody Empty = ()
   ConstrainBody (HasBody ts a) = AllMimeEncode a ts
 
+-- | Construct a 'Server' value from an @'Impl' api@ implementation
+-- matching the @'Sing' api@ singleton. This is the primary function for
+-- the entire package.
 server :: (Constrain api, Monad m) => Sing api -> Impl m api -> Server m
 server SAbstract mApp = returnServer (fmap Application mApp)
 server (SOneOf SNil) RNil = notFound

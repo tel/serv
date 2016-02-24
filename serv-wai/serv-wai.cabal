@@ -26,10 +26,8 @@ library
   hs-source-dirs:      src
   exposed-modules:
 
-    -- Serv.Internal.Server
-    -- Serv.Internal.TypeLevel
-
     Serv.Wai
+    Serv.Wai.Prelude
     Serv.Wai.Type
     Serv.Wai.Error
     Serv.Wai.Rec
