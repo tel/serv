@@ -30,7 +30,7 @@ module Serv.Api (
   , Endpoint, OneOf, Abstract, (:>)
 
   -- ** 'Path'
-  , Const, HeaderAs, Seg, Header, Wildcard,
+  , Const, HeaderAs, Seg, Header, Wildcard
 
   -- ** 'Handler'
   , Method, CaptureBody, CaptureHeaders, CaptureQuery
