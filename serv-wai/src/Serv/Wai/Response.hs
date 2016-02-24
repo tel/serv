@@ -10,7 +10,29 @@
 -- with status code @s :: 'Status'@, response headers @headers ::
 -- [(Network.HTTP.Kinder.Header.HeaderName, *)]@ and a body described by
 -- @body :: 'Api.Body' *@.
-module Serv.Wai.Response where
+module Serv.Wai.Response (
+
+  -- * Responses
+    Response
+  , SomeResponse
+
+  -- ** Construction
+  , empty
+  , addBody
+  , removeBody
+  , addHeader
+  , addHeaderQuiet
+
+  -- ** Finalization
+  -- | When constructing a response in our server implementation we do not
+  -- build specific responses but instead responses which may be one of
+  -- many possible server result types (parameterized by status codes). To
+  -- represent this we use the 'SomeResponse' type and use 'respond' to
+  -- convert from a normal 'Response' to 'SomeResponse'.
+
+  , respond
+
+) where
 
 import           Data.Singletons
 import           Network.HTTP.Kinder.Header (HeaderEncode, headerEncodePair)
