@@ -24,6 +24,7 @@ module Serv.Wai.Type (
 
   -- ** Basic 'Server's
 
+  , returnServer
   , notFound
   , badRequest
   , methodNotAllowed
@@ -99,6 +100,10 @@ import qualified Serv.Wai.Error             as Error
 -- transformed into a Wai 'Appliation', but 'Server' tracks around more
 -- information useful for interpretation and route finding.
 newtype Server m = Server { runServer :: StateT Context m ServerResult }
+
+-- | Inject a monadic result directly into a 'Server'
+returnServer :: Monad m => m ServerResult -> Server m
+returnServer m = Server (lift m)
 
 -- | Lift an effect transformation on to a Server
 mapServer :: Monad m => (forall x . m x -> n x) -> Server m -> Server n

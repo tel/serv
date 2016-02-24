@@ -23,6 +23,11 @@ module Network.HTTP.Kinder.Query (
     QueryEncode (..)
   , QueryDecode (..)
 
+  -- ** Listing constraints to type-level lists
+
+  , AllQueryEncodes
+  , AllQueryDecodes
+
   -- ** Types for encoding/decoding request queries
   , QueryKeyState (..)
   , Flag (..)
@@ -79,10 +84,27 @@ instance Monad QueryKeyState where
 class QueryEncode (s :: Symbol) a where
   queryEncode :: sing s -> a -> QueryKeyState Text
 
+
+-- | For a given concrete type @a@, a list of pairs @ts@ satisfies
+-- @'AllQueryEncode' a ts@ if each @(n, a)@ in @ts@ has @'QueryEncode'
+-- n a@.
+type family AllQueryEncodes hs :: Constraint where
+  AllQueryEncodes '[] = ()
+  AllQueryEncodes ( '(s, a) ': hs ) = (QueryEncode s a, AllQueryEncodes hs)
+
+
 -- | Attempts to parse a representation of a query value at a given query
 -- key.
 class QueryDecode (s :: Symbol) a where
   queryDecode :: sing s -> QueryKeyState Text -> Either String a
+
+-- | For a given concrete type @a@, a list of pairs @ts@ satisfies
+-- @'AllQueryDecode' a ts@ if each @(n, a)@ in @ts@ has @'QueryDecode'
+-- n a@.
+type family AllQueryDecodes hs :: Constraint where
+  AllQueryDecodes '[] = ()
+  AllQueryDecodes ( '(s, a) ': hs ) = (QueryDecode s a, AllQueryDecodes hs)
+
 
 -- | Produces a pair of @(name, representation)@ from a given query encoding.
 queryEncodePair :: (KnownSymbol n, QueryEncode n a) => Sing n -> a -> Maybe (Text, Maybe Text)

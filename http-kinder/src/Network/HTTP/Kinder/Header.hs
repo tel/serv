@@ -22,7 +22,9 @@ module Network.HTTP.Kinder.Header (
 ) where
 
 import           Network.HTTP.Kinder.Header.Definitions
-import           Network.HTTP.Kinder.Header.Serialization (HeaderDecode (..),
+import           Network.HTTP.Kinder.Header.Serialization (AllHeaderDecodes,
+                                                           AllHeaderEncodes,
+                                                           HeaderDecode (..),
                                                            HeaderEncode (..),
                                                            headerDecodeBS,
                                                            headerEncodeBS,

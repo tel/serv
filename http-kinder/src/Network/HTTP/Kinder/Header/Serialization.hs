@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE ExplicitForAll        #-}
 {-# LANGUAGE FlexibleContexts      #-}
@@ -5,6 +6,8 @@
 {-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
 
 -- | 'HeaderName's define semantics for 'Text' values seen in HTTP headers
 -- over the wire. This module provides classes to map both to and from
@@ -16,6 +19,11 @@ module Network.HTTP.Kinder.Header.Serialization (
 
     HeaderEncode (..)
   , HeaderDecode (..)
+
+  -- ** Listing constraints to type-level lists
+
+  , AllHeaderEncodes
+  , AllHeaderDecodes
 
   -- * Extra serialization utilities
 
@@ -41,6 +49,7 @@ import           Data.Text                              (Text)
 import qualified Data.Text                              as Text
 import qualified Data.Text.Encoding                     as Text
 import           Data.Time
+import           GHC.Exts
 import           Network.HTTP.Kinder.Common
 import           Network.HTTP.Kinder.Header.Definitions
 import           Network.HTTP.Kinder.Verb
@@ -54,6 +63,13 @@ import qualified Network.HTTP.Media                     as Media
 -- 'Nothing'. This implies default behavior.
 class HeaderEncode (n :: HeaderName) a where
   headerEncode :: sing n -> a -> Maybe Text
+
+-- | For a given concrete type @a@, a list of pairs @ts@ satisfies
+-- @'AllHeaderEncode' a ts@ if each @(n, a)@ in @ts@ has @'HeaderEncode'
+-- n a@.
+type family AllHeaderEncodes hs :: Constraint where
+  AllHeaderEncodes '[] = ()
+  AllHeaderEncodes ( '(n, a) ': hs ) = (HeaderEncode n a, AllHeaderEncodes hs)
 
 -- | Encode a 'HeaderName' singleton and a 'HeaderEncode'-represented value
 -- as a pair of name and representation, ready to be sent over the wire.
@@ -77,6 +93,13 @@ headerEncodeBS s = fmap Text.encodeUtf8 . headerEncode s
 -- seeking a default value (should one exist).
 class HeaderDecode (n :: HeaderName) a where
   headerDecode :: sing n -> Maybe Text -> Either String a
+
+-- | For a given concrete type @a@, a list of pairs @ts@ satisfies
+-- @'AllHeaderDecode' a ts@ if each @(n, a)@ in @ts@ has @'HeaderDecode'
+-- n a@.
+type family AllHeaderDecodes hs :: Constraint where
+  AllHeaderDecodes '[] = ()
+  AllHeaderDecodes ( '(n, a) ': hs ) = (HeaderDecode n a, AllHeaderDecodes hs)
 
 -- | While HTTP header semantics are built off of 'Text'-like values, we
 -- usually read a raw 'S.ByteString' from the wire. This helper function

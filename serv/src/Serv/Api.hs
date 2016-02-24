@@ -22,6 +22,15 @@ module Serv.Api (
   -- ** Syntax sugar
   , (:::) (..)
 
+  -- * Singletons
+  , Sing (
+        SEndpoint, SOneOf, SAbstract, (:%>)
+      , SConst, SHeaderAs, SSeg, SHeader, SWildcard
+      , SMethod, SCaptureBody, SCaptureHeaders, SCaptureQuery
+      , SRespond
+      , SHasBody, SEmpty
+    )
+
   -- * Type aliases
 
   -- | Eliminates need for single-quoting the @DataKind@-lifted types.
