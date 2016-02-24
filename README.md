@@ -35,8 +35,7 @@ This repo contains the 3 main existing Serv libraries:
 
 ## Contributing
 
-**Serv is still in early design phases** although it is already seeing use.
-Contribution ranging from PRs to feedback on the API design language is *very
-welcome*. See the [issues tracker](https://github.com/tel/serv/issues) to find
-interesting projects, submit new issues, or email me at
-[mailto:me@jspha.com](me@jspha.com).
+**Serv is still in early design phases**. Contribution ranging from PRs to
+feedback on the API design language is *very welcome*. See the [issues
+tracker](https://github.com/tel/serv/issues) to find interesting projects,
+submit new issues, or email me at [mailto:me@jspha.com](me@jspha.com).
