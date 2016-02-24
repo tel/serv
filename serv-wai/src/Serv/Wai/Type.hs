@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE FlexibleInstances                  #-}
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE ExplicitForAll             #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -54,12 +55,8 @@ module Serv.Wai.Type (
 
   -- | 'Server's are just monads within a server-like 'Context'---the
   -- 'Contextual' class abstracts out several operations which we expect to
-  -- occur in such a context. Additionally, there's 'InContext', a concrete
-  -- monad transformer implementing 'Contextual' which is how 'Server' is
-  -- implemented as well.
-
+  -- occur in such a context.
   , Contextual (..)
-  , InContext (..)
 
 ) where
 
@@ -101,7 +98,7 @@ import qualified Serv.Wai.Error             as Error
 -- Ultimately, a 'Server', or at least a 'Server IO', is destined to be
 -- transformed into a Wai 'Appliation', but 'Server' tracks around more
 -- information useful for interpretation and route finding.
-newtype Server m = Server { runServer :: InContext m ServerResult }
+newtype Server m = Server { runServer :: StateT Context m ServerResult }
 
 -- | Lift an effect transformation on to a Server
 mapServer :: Monad m => (forall x . m x -> n x) -> Server m -> Server n
@@ -162,7 +159,7 @@ serverApplication''
   -> Application
 serverApplication'' server xform request respond = do
   ctx0 <- makeContext request
-  (val, ctx1) <- runStateT (runInContext (runServer server)) ctx0
+  (val, ctx1) <- runStateT (runServer server) ctx0
   case val of
     Application app -> app ctx1 (ctxRequest ctx1) respond
     _ -> respond (xform ctx1 val)
@@ -236,29 +233,19 @@ class Contextual m where
   -- | Pulls the value of a query parameter, attempting to parse it
   getQuery :: QueryDecode s a => Sing s -> m (Either String a)
 
-newtype InContext m a
-  = InContext { runInContext :: StateT Context m a }
-  deriving (Functor, Applicative, Monad, MonadTrans, MonadState Context, MonadIO, MFunctor)
-
-instance Monad m => MonadReader Context (InContext m) where
-  ask = get
-  local f m = do
-    (a, _ctx) <- fork (modify f >> m)
-    return a
-
 -- | (internal) gets the raw header data
 getHeaderRaw
   :: forall m a (n :: HeaderName)
-  . Monad m => Sing n -> InContext m (Maybe S.ByteString)
+  . Monad m => Sing n -> StateT Context m (Maybe S.ByteString)
 getHeaderRaw sing = do
-  hdrs <- asks ctxHeaders
+  hdrs <- gets ctxHeaders
   return $ Map.lookup (headerName sing) hdrs
 
 -- | (internal) declare that a header was accessed (and possibly that is
 -- should take a certain value)
 declareHeader
   :: forall m a (n :: HeaderName)
-  . Monad m => Sing n -> Maybe Text -> InContext m ()
+  . Monad m => Sing n -> Maybe Text -> StateT Context m ()
 declareHeader sing val =
   modify $ \ctx ->
     ctx { ctxHeaderAccess =
@@ -269,9 +256,9 @@ declareHeader sing val =
 -- | (internal) gets the raw query data
 getQueryRaw
   :: forall m a (n :: Symbol)
-  . Monad m => Sing n -> InContext m (QueryKeyState Text)
+  . Monad m => Sing n -> StateT Context m (QueryKeyState Text)
 getQueryRaw sing = do
-  qs <- asks ctxQuery
+  qs <- gets ctxQuery
   let qKey = withKnownSymbol sing (fromString (symbolVal sing))
   return $ case Map.lookup qKey qs of
              Nothing -> QueryKeyAbsent
@@ -281,24 +268,23 @@ getQueryRaw sing = do
 -- | (internal) declare that a query key was accessed
 declareQuery
   :: forall m a (n :: Symbol)
-  . Monad m => Sing n -> InContext m ()
+  . Monad m => Sing n -> StateT Context m ()
 declareQuery sing = do
   let qKey = withKnownSymbol sing (fromString (symbolVal sing))
   modify $ \ctx ->
     ctx { ctxQueryAccess = qKey : ctxQueryAccess ctx }
 
-instance Monad m => Contextual (InContext m) where
-  fork (InContext m) = do
-    ctx <- ask
-    (a, newCtx) <- lift (runStateT m ctx)
-    return (a, newCtx)
+instance Monad m => Contextual (StateT Context m) where
+  fork m = StateT $ \ctx -> do
+    (a, newCtx) <- runStateT m ctx
+    return ((a, newCtx), ctx)
 
   restore = put
 
-  getVerb = parseVerb <$> asks (requestMethod . ctxRequest)
+  getVerb = parseVerb <$> gets (requestMethod . ctxRequest)
 
   endOfPath = do
-    path <- asks ctxPathZipper
+    path <- gets ctxPathZipper
     case path of
       (_, []) -> return True
       _ -> return False
