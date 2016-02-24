@@ -29,6 +29,7 @@ library
     -- Serv.Internal.Server
     -- Serv.Internal.TypeLevel
 
+    Serv.Wai
     Serv.Wai.Type
     Serv.Wai.Error
     Serv.Wai.Rec
