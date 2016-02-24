@@ -1,7 +1,17 @@
 name:                serv-wai
 version:             0.1.0.0
-synopsis:            Dependently typed API server framework
-description:         Please see README.md
+synopsis:            Dependently typed API servers with Serv
+description:
+  Implement "Network.Wai" style servers matching "Serv.Api" style API
+  descriptions.
+  .
+  This package offers tools for building lightweight API servers to match APIs
+  described using the types from "Serv.Api". You implement endpoints matching
+  the API types in whatever monad you desire (providing a "run" function to
+  @IO@) and the server is automatically generated from there.
+  .
+  See the README for more details.
+
 homepage:            http://github.com/tel/serv#readme
 license:             BSD3
 license-file:        LICENSE
@@ -29,7 +39,12 @@ library
     Serv.Internal.Server.Type
     Serv.Internal.TypeLevel
     Serv.Server
+
     Serv.Wai.Type
+    Serv.Wai.Error
+    Serv.Wai.Rec
+    Serv.Wai.Corec
+    Serv.Wai.Response
 
   build-depends:       base >= 4.7 && < 5
 
