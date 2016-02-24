@@ -28,14 +28,7 @@ library
 
     Serv.Cors
     Serv.Internal.Cors
-    Serv.Internal.Query
-    Serv.Internal.Rec
     Serv.Internal.Server
-    Serv.Internal.Server.Config
-    Serv.Internal.Server.Context
-    Serv.Internal.Server.Error
-    Serv.Internal.Server.Monad
-    Serv.Internal.Server.Response
     Serv.Internal.Server.Type
     Serv.Internal.TypeLevel
     Serv.Server

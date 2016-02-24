@@ -22,13 +22,15 @@ module Serv.Api (
   -- ** Syntax sugar
   , (:::) (..)
 
-  -- * Type aliases (eliminates need for single-quotation)
+  -- * Type aliases
+
+  -- | Eliminates need for single-quoting the @DataKind@-lifted types.
 
   -- ** 'Api'
   , Endpoint, OneOf, Abstract, (:>)
 
   -- ** 'Path'
-  , Const, HeaderAs, Seg, Header, Wildcard, Cors
+  , Const, HeaderAs, Seg, Header, Wildcard,
 
   -- ** 'Handler'
   , Method, CaptureBody, CaptureHeaders, CaptureQuery
@@ -147,7 +149,6 @@ data Path star
   | Wildcard
     -- ^ Always matches, "captures" the remaining path segments as a list
     -- of text values. May just capture the empty list.
-  | Cors star
 
 data instance Sing (p :: Path *)
   = forall s . p ~ Const s => SConst (Sing s)
@@ -155,7 +156,6 @@ data instance Sing (p :: Path *)
   | forall n t . p ~ Seg n t => SSeg (Sing n) (Sing t)
   | forall n t . p ~ Header n t => SHeader (Sing n) (Sing t)
   | p ~ Wildcard => SWildcard
-  | forall t . p ~ Cors t => SCors (Sing t)
 
 instance SingI s => SingI (Const s :: Path *) where
   sing = SConst sing
@@ -172,15 +172,11 @@ instance (SingI n, SingI t) => SingI (Header n t :: Path *) where
 instance SingI (Wildcard :: Path *) where
   sing = SWildcard
 
-instance SingI t => SingI (Cors t :: Path *) where
-  sing = SCors sing
-
 type Const sym = 'Const sym
 type HeaderAs ty sym = 'HeaderAs ty sym
 type Seg sym ty = 'Seg sym ty
 type Header name ty = 'Header name ty
 type Wildcard = 'Wildcard
-type Cors ty = 'Cors ty
 
 
 

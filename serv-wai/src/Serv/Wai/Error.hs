@@ -1,8 +1,8 @@
 
 module Serv.Wai.Error where
 
-import           Data.Set           (Set)
-import           Serv.Internal.Verb
+import           Data.Set                 (Set)
+import           Network.HTTP.Kinder.Verb
 
 -- | Errors which arise during the "handling" portion of dealing with a response.
 data RoutingError

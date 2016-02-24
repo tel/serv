@@ -4,6 +4,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures             #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RankNTypes                 #-}
 
 module Serv.Wai.Type where
 
@@ -17,20 +19,112 @@ import qualified Data.CaseInsensitive       as CI
 import           Data.IORef
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
+import           Data.Maybe                 (catMaybes)
+import           Data.Set                   (Set)
 import           Data.Singletons
 import           Data.Singletons.TypeLits
 import           Data.String
 import           Data.Text                  (Text)
 import qualified Data.Text.Encoding         as Text
 import           Network.HTTP.Kinder.Header (HeaderDecode, HeaderName,
-                                             SomeHeaderName, headerDecodeBS,
+                                             Sing (SAllow), SomeHeaderName,
+                                             headerDecodeBS, headerEncodePair,
                                              headerName, parseHeaderName)
 import           Network.HTTP.Kinder.Query  (QueryDecode (..),
                                              QueryKeyState (..))
+import qualified Network.HTTP.Kinder.Status as St
 import           Network.HTTP.Kinder.Verb   (Verb, parseVerb)
 import           Network.HTTP.Types.URI     (queryToQueryText)
 import           Network.Wai
+import           Serv.Wai.Error             (RoutingError)
+import qualified Serv.Wai.Error             as Error
 
+-- Server
+-- ----------------------------------------------------------------------------
+
+-- | A server executing in a given monad. We construct these from 'Api'
+-- descriptions and corresponding 'Impl' descriptions for said 'Api's.
+-- Ultimately, a 'Server', or at least a 'Server IO', is destined to be
+-- transformed into a Wai 'Appliation', but 'Server' tracks around more
+-- information useful for interpretation and route finding.
+newtype Server m = Server { runServer :: InContext m ServerResult }
+
+-- | Lift an effect transformation on to a Server
+mapServer :: Monad m => (forall x . m x -> n x) -> Server m -> Server n
+mapServer phi (Server act) = Server (hoist phi act)
+
+notFound :: Monad m => Server m
+notFound = Server (return (RoutingError Error.NotFound))
+
+methodNotAllowed :: Monad m => Set Verb -> Server m
+methodNotAllowed verbs =
+  Server (return (RoutingError (Error.MethodNotAllowed verbs)))
+
+badRequest :: Monad m => Maybe String -> Server m
+badRequest err = Server (return (RoutingError (Error.BadRequest err)))
+
+-- | Converts a @'Server' 'IO'@ into a regular Wai 'Application' value.
+serverApplication :: Server IO -> Application
+serverApplication server = serverApplication' server (const id)
+
+-- | Converts a @'Server' 'IO'@ into a regular Wai 'Application' value;
+-- parameterized on a "response transformer" which allows a final
+-- modification of the Wai response using information gathered from the
+-- 'Context'. Useful, e.g., for writing final headers.
+serverApplication' :: Server IO -> (Context -> Response -> Response) -> Application
+serverApplication' server xform = do
+  serverApplication'' server $ \ctx res ->
+    case res of
+      RoutingError err -> xform ctx (defaultRoutingErrorResponse err)
+      WaiResponse resp -> xform ctx resp
+
+-- | A straightforward way of transforming 'RoutingError' values to Wai
+-- 'Response's. Used by default in 'serverApplication''.
+defaultRoutingErrorResponse :: RoutingError -> Response
+defaultRoutingErrorResponse err =
+  case err of
+    Error.NotFound ->
+      responseLBS (St.httpStatus St.SNotFound) [] ""
+    Error.BadRequest e -> do
+      let errString = fromString (maybe "" id e)
+      responseLBS (St.httpStatus St.SBadRequest) [] (fromString errString)
+    Error.UnsupportedMediaType ->
+      responseLBS (St.httpStatus St.SUnsupportedMediaType) [] ""
+    Error.MethodNotAllowed verbs -> do
+      responseLBS
+        (St.httpStatus St.SMethodNotAllowed)
+        (catMaybes [headerEncodePair SAllow verbs])
+        ""
+
+-- | Converts a @'Server' 'IO'@ into a regular Wai 'Application' value. The
+-- most general of the @serverApplication*@ functions, parameterized on
+-- a function interpreting the 'Context' and 'ServerResult' as a Wai
+-- 'Response'. As an invariant, the interpreter will never see an
+-- 'Application' 'ServerResult'---those are handled by this function.
+serverApplication''
+  :: Server IO
+  -> (Context -> ServerResult -> Response)
+  -> Application
+serverApplication'' server xform request respond = do
+  ctx0 <- makeContext request
+  (val, ctx1) <- runStateT (runInContext (runServer server)) ctx0
+  case val of
+    Application app -> app ctx1 (ctxRequest ctx1) respond
+    _ -> respond (xform ctx1 val)
+
+data ServerResult
+  = RoutingError RoutingError
+    -- ^ Routing errors arise when a routing attempt fails and, depending on the
+    -- error, either we should recover and backtrack or resolve the entire response
+    -- with that error.
+  | WaiResponse Response
+    -- ^ If the response is arising from the 'Server' computation itself it will
+    -- be transformed automatically into a 'Wai.Response' value we can handle
+    -- directly. These are opaque to routing, assumed successes.
+  | Application (Context -> Application)
+    -- ^ If the application demands an "upgrade" or ties into another server
+    -- mechanism then routing at that location will return the (opaque)
+    -- 'Application' to continue handling.
 
 -- In Context
 -- ----------------------------------------------------------------------------

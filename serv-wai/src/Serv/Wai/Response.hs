@@ -5,6 +5,11 @@
 {-# LANGUAGE PolyKinds        #-}
 {-# LANGUAGE TypeOperators    #-}
 
+-- | Functions and types for creating a Serv response to match a 'Api.Api'.
+-- A value of @'Response' (s, 'Api.Respond' headers body)@ is a response
+-- with status code @s :: 'Status'@, response headers @headers ::
+-- [(Network.HTTP.Kinder.Header.HeaderName, *)]@ and a body described by
+-- @body :: 'Api.Body' *@.
 module Serv.Wai.Response where
 
 import           Data.Singletons
