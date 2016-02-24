@@ -1,25 +1,43 @@
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE DataKinds       #-}
-{-# LANGUAGE TypeFamilies    #-}
-{-# LANGUAGE TypeOperators   #-}
+{-# LANGUAGE ConstraintKinds     #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE TypeOperators       #-}
 
 module Serv.Wai where
 
+import           Control.Monad.Trans
+import qualified Data.ByteString.Lazy          as Sl
+import qualified Data.ByteString          as S
+import           Data.CaseInsensitive          (CI)
+import           Data.Maybe                    (catMaybes)
+import           Data.Set                      (Set)
+import qualified Data.Set                      as Set
 import           Data.Singletons
 import           Data.Singletons.Prelude.List
+import           Data.Singletons.Prelude.Tuple
 import           Data.Singletons.TypeLits
 import           Data.Text                     (Text)
 import           GHC.Exts
 import           Network.HTTP.Kinder.Header    (AllHeaderDecodes,
                                                 AllHeaderEncodes,
-                                                HeaderDecode (..))
-import           Network.HTTP.Kinder.MediaType (AllMimeEncode)
+                                                HeaderDecode (..), HeaderName, Sing (SAccept, SAllow, SContentType),
+                                                headerEncodePair)
+import           Network.HTTP.Kinder.MediaType (AllMimeEncode,
+                                                negotiatedMimeEncode)
 import           Network.HTTP.Kinder.Query     (AllQueryDecodes)
+import           Network.HTTP.Kinder.Status    (Status)
+import qualified Network.HTTP.Kinder.Status    as St
 import           Network.HTTP.Kinder.URI       (URIDecode (..))
-import           Network.HTTP.Kinder.Status (Status)
+import           Network.HTTP.Kinder.Verb      (Verb (..))
 import           Network.Wai                   (Application)
+import           Network.Wai
 import           Serv.Api
+import           Serv.Api.Analysis
+import           Serv.Wai.Corec
 import           Serv.Wai.Rec
+import           Serv.Wai.Response
 import           Serv.Wai.Response             (SomeResponse)
 import           Serv.Wai.Type
 
@@ -52,19 +70,23 @@ type family ImplHandler m h where
 type family Constrain a :: Constraint where
   Constrain Abstract = ()
 
+  Constrain (Endpoint ann hs) = ConstrainEndpoint hs
+
   Constrain (OneOf '[]) = ()
   Constrain (OneOf (api ': apis)) =
     (Constrain api, Constrain (OneOf apis))
 
-  Constrain (Endpoint ann '[]) = ()
-  Constrain (Endpoint ann (h ': hs)) =
-    (ConstrainHandler h, Constrain (Endpoint ann hs))
 
   Constrain (Const s :> api) = Constrain api
   Constrain (HeaderAs s v :> api) = Constrain api
   Constrain (Seg s a :> api) = (Constrain api, URIDecode a)
   Constrain (Header n a :> api) = (Constrain api, HeaderDecode n a)
   Constrain (Wildcard :> api) = Constrain api
+
+type family ConstrainEndpoint hs :: Constraint where
+  ConstrainEndpoint '[] = ()
+  ConstrainEndpoint (h ': hs) =
+    (ConstrainHandler h, ConstrainEndpoint hs)
 
 type family ConstrainHandler h :: Constraint where
   ConstrainHandler (Method verb os) =
@@ -119,3 +141,171 @@ server (path :%> api) impl =
       runServer $ case tryVal of
         Left err -> badRequest (Just err)
         Right val -> server api (impl val)
+server (SEndpoint _ann handlers) impls = Server $ do
+  let verbs = augmentVerbs (inspectVerbs handlers)
+  isTerminal <- endOfPath
+  if not isTerminal
+    then runServer notFound
+    else do
+      mayVerb <- getVerb
+      case mayVerb of
+        Nothing -> runServer (methodNotAllowed verbs)
+        Just verb
+          | verb == OPTIONS -> do
+            return $
+              WaiResponse
+              $ responseLBS
+                  (St.httpStatus St.SOk)
+                  (catMaybes [headerEncodePair SAllow verbs])
+                  ""
+          | verb `Set.member` verbs -> do
+              runServer (handles verbs handlers impls)
+          | otherwise -> runServer (methodNotAllowed verbs)
+
+handles :: (ConstrainEndpoint hs, Monad m) => Set Verb -> Sing hs -> HList (AllHandlers m hs) -> Server m
+handles verbs SNil RNil = methodNotAllowed verbs
+handles verbs (SCons sHandler sRest) (Identity handler :& implRest) =
+  handle sHandler handler
+  `orElse`
+  handles verbs sRest implRest
+
+handle :: (ConstrainHandler h, Monad m) => Sing h -> ImplHandler m h -> Server m
+handle sH impl = Server $
+  case sH of
+    SMethod sVerb sAlts -> do
+      mayVerb <- getVerb
+      let verbProvided = fromSing sVerb
+      case mayVerb of
+        Nothing -> runServer notFound
+        Just verbRequested
+          | verbRequested == HEAD -> do
+              someResponse <- lift impl
+              handleResponse False sAlts someResponse
+          | verbRequested == verbProvided -> do
+              someResponse <- lift impl
+              handleResponse True sAlts someResponse
+          | otherwise ->
+              runServer notFound -- not methodNotAllowedS because we can't
+                                 -- make that judgement locally.
+
+    SCaptureHeaders sHdrs sH' -> do
+      tryHdrs <- extractHeaders sHdrs
+      case tryHdrs of
+        Left errors ->
+          runServer (badRequest (Just (unlines ("invalid headers:" : errors))))
+        Right rec ->
+          runServer (handle sH' (impl rec))
+
+    SCaptureQuery sQ sH' -> do
+      tryQ <- extractQueries sQ
+      case tryQ of
+        Left errors ->
+          runServer (badRequest (Just (unlines ("invalid query:" : errors))))
+        Right rec ->
+          runServer (handle sH' (impl rec))
+
+    -- TODO: These...
+
+    SCaptureBody _sCTypes _sTy _sH' ->
+      undefined -- runServer (handle sH' (impl _))
+
+
+extractHeaders
+  :: forall m (hs :: [(HeaderName, *)])
+  . (AllHeaderDecodes hs, Monad m, Contextual m)
+  => Sing hs -> m (Either [String] (FieldRec hs))
+extractHeaders SNil = return (Right RNil)
+extractHeaders (SCons (STuple2 hdr (_ty :: Sing a)) rest) = do
+  tryRec <- extractHeaders rest
+  tryHeader <- getHeader hdr
+  return $ case (tryRec, tryHeader :: Either String a) of
+    (Left errs, Left err) -> Left (err : errs)
+    (Left errs, Right _) -> Left errs
+    (Right _, Left err) -> Left [err]
+    (Right rec, Right val) -> Right (ElField hdr val :& rec)
+
+extractQueries
+  :: forall m (qs :: [(Symbol, *)])
+  . (AllQueryDecodes qs, Monad m, Contextual m)
+  => Sing qs -> m (Either [String] (FieldRec qs))
+extractQueries SNil = return (Right RNil)
+extractQueries (SCons (STuple2 qsym (_ty :: Sing a)) rest) = do
+  tryRec <- extractQueries rest
+  tryQuery <- getQuery qsym
+  return $ case (tryRec, tryQuery :: Either String a) of
+    (Left errs, Left err) -> Left (err : errs)
+    (Left errs, Right _) -> Left errs
+    (Right _, Left err) -> Left [err]
+    (Right rec, Right val) -> Right (ElField qsym val :& rec)
+
+handleResponse
+  :: (ConstrainOutputs alts, Monad m, Contextual m)
+  => Bool -> Sing alts -> SomeResponse alts -> m ServerResult
+
+handleResponse includeBody (SCons _ sRest) (Skip someResponse) =
+  handleResponse includeBody sRest someResponse
+
+handleResponse
+  includeBody
+  (SCons (STuple2 sStatus (SRespond _sHeaders sBody)) _)
+  (Stop resp) =
+
+  case (sBody, resp) of
+    (SEmpty, EmptyResponse secretHeaders headers) ->
+      return
+        $ WaiResponse
+        $ responseLBS
+            (St.httpStatus sStatus)
+            (secretHeaders ++ encodeHeaders headers)
+            ""
+    (SHasBody sCtypes _sTy, ContentResponse secretHeaders headers a)
+      | not includeBody -> do
+          return
+            $ WaiResponse
+            $ responseLBS
+                (St.httpStatus sStatus)
+                (secretHeaders ++ encodeHeaders headers)
+                ""
+      | otherwise -> do
+        eitAccept <- getHeader SAccept
+        let accepts = either (const []) id eitAccept
+        case negotiatedMimeEncode sCtypes of
+          Nothing ->
+            return
+              $ WaiResponse
+              $ responseLBS (St.httpStatus St.SNotAcceptable) [] ""
+          Just nego -> do
+            let (mt, body) = nego accepts a
+                newHeaders = catMaybes [ headerEncodePair SContentType mt ]
+            return
+              $ WaiResponse
+              $ responseLBS
+                  (St.httpStatus sStatus)
+                  ( newHeaders
+                    ++ secretHeaders
+                    ++ encodeHeaders headers
+                  )
+                  (Sl.fromStrict body)
+    _ -> bugInGHC
+
+handleResponse _ _ _ = bugInGHC
+
+-- | Augment the Set of allowed verbs by adding OPTIONS and, as necessary,
+-- HEAD.
+augmentVerbs :: Set Verb -> Set Verb
+augmentVerbs = augHead . augOptions where
+  augHead s
+    | Set.member GET s = Set.insert HEAD s
+    | otherwise = s
+  augOptions = Set.insert OPTIONS
+
+encodeHeaders :: AllHeaderEncodes rs => FieldRec rs -> [(CI S.ByteString, S.ByteString)]
+encodeHeaders = catMaybes . encodeHeaders'
+
+-- | Convert a record of headers into a raw bytes format
+encodeHeaders' :: AllHeaderEncodes rs => FieldRec rs -> [Maybe (CI S.ByteString, S.ByteString)]
+encodeHeaders' rec =
+  case rec of
+    RNil -> []
+    ElField sing val :& rest ->
+      headerEncodePair sing val : encodeHeaders' rest

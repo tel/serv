@@ -25,7 +25,12 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Serv.Api, Serv.Api.Prelude
+  exposed-modules:
+
+    Serv.Api
+    Serv.Api.Analysis
+    Serv.Api.Prelude
+
   build-depends:       base >= 4.7 && < 5
                      , http-kinder
                      , singletons

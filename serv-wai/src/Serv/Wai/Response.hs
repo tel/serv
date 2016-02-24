@@ -13,7 +13,7 @@
 module Serv.Wai.Response (
 
   -- * Responses
-    Response
+    Response (..)
   , SomeResponse
 
   -- ** Construction

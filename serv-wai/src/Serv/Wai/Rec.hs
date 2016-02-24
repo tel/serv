@@ -22,6 +22,7 @@ module Serv.Wai.Rec (
 
 import Data.Vinyl.Core
 import Data.Functor.Identity
+import Data.Singletons
 
 -- FieldRec
 -- ----------------------------------------------------------------------------
@@ -29,13 +30,13 @@ import Data.Functor.Identity
 -- | A more kind polymorphic element field than what's normally available
 -- in "Data.Vinyl"
 data ElField field where
-  ElField :: !a -> ElField '(k, a)
+  ElField :: Sing k -> !a -> ElField '(k, a)
 
 -- | A 'FieldRec' is a record of types tagged by some kind of "name".
 type FieldRec hs = Rec ElField hs
 
-(=:) :: sing a -> v -> FieldRec '[ '(a, v) ]
-_ =: v = ElField v :& RNil
+(=:) :: Sing a -> v -> FieldRec '[ '(a, v) ]
+s =: v = ElField s v :& RNil
 
 -- HList
 -- ----------------------------------------------------------------------------
