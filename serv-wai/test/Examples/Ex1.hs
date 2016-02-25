@@ -1,39 +1,35 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PolyKinds         #-}
 {-# LANGUAGE TypeOperators     #-}
 
 module Examples.Ex1 where
 
-import           Data.Function            ((&))
 import           Data.String
-import           Data.Text                (Text)
-import qualified Network.Wai              as Wai
-import qualified Network.Wai.Test         as T
-import           Serv.Api
-import           Serv.Common
-import qualified Serv.ContentType         as Ct
-import qualified Serv.Header              as H
-import qualified Serv.StatusCode as Sc
-import           Serv.Server
-import           Test.Tasty
-import qualified Test.Tasty.HUnit         as Hu
+import           Data.Text        (Text)
+import           Serv.Api.Prelude
+import           Serv.Wai.Prelude
 
-type RawBody = HasBody '[ Ct.TextPlain ] Text
-type JSONBody = HasBody '[ Ct.JSON ] [Int]
+import qualified Network.Wai      as Wai
+import qualified Network.Wai.Test as T
+import           Test.Tasty
+import qualified Test.Tasty.HUnit as Hu
+
+type RawBody = HasBody '[TextPlain] Text
+type JSONBody = HasBody '[JSON] [Int]
 
 type TheApi
   = Endpoint ()
-    '[ Method GET
-       '[ Sc.Ok :::
-          Respond '[ H.CacheControl ::: RawText ] RawBody
+    '[
+      Method GET
+       '[ Ok :::
+          Respond '[ CacheControl ::: Raw Text ] RawBody
         ]
      , Method PUT
-       '[ Sc.Ok :::
-          Respond '[ H.CacheControl ::: RawText ] JSONBody
+       '[ Ok :::
+          Respond '[ CacheControl ::: Raw Text ] JSONBody
         ]
      , Method DELETE
-       '[ Sc.InternalServerError :::
+       '[ InternalServerError :::
           Respond '[] RawBody
         ]
      ]
@@ -42,29 +38,31 @@ apiSing :: Sing TheApi
 apiSing = sing
 
 impl :: Impl IO TheApi
-impl = get :<|> put :<|> delete :<|> MethodNotAllowed
-  where
-    get =
-      respond
-      $ emptyResponse Sc.SOk
-      & withHeader H.SCacheControl "foo"
-      & withBody "Hello"
-    put =
-      respond
-      $ emptyResponse Sc.SOk
-      & withHeader H.SCacheControl "foo"
-      & withBody [1, 2, 3]
-    delete =
-      respond
-      $ emptyResponse Sc.SInternalServerError
-      & withBody "Server error"
-
+impl =
+  SGET =:
+    (return . respond
+       $ emptyResponse SOk
+       & withHeader SCacheControl "foo"
+       & withBody "Hello")
+  <+>
+  SPUT =:
+    (return . respond
+       $ emptyResponse SOk
+       & withHeader SCacheControl "foo"
+       & withBody [1, 2, 3])
+  <+>
+  SDELETE =:
+    (return . respond
+       $ emptyResponse SInternalServerError
+       & withBody "Server error")
+  <+>
+  RNil
 
 theServer :: Server IO
 theServer = server apiSing impl
 
 runTest :: T.Session a -> IO a
-runTest = flip T.runSession (makeApplication defaultConfig theServer)
+runTest = flip T.runSession (serverApplication theServer)
 
 test1 :: TestTree
 test1 = testGroup "Simple responses"

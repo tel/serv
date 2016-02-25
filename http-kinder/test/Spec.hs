@@ -1,11 +1,11 @@
 
-import qualified Examples.Ex1                 as Ex1
-import           Test.HUnit
 import           Test.Tasty
 import qualified Test.Tasty.HUnit             as Hu
 import           Test.Tasty.Ingredients.Basic (consoleTestReporter,
                                                listingTests)
 import           Test.Tasty.Runners.AntXML    (antXMLRunner)
+import           Test.HUnit
+import qualified Test.Network.HTTP.Kinder.URI as URI
 
 main :: IO ()
 main =
@@ -19,7 +19,7 @@ tests :: TestTree
 tests =
   testGroup "Server Tests"
   [ systemTests
-  , Ex1.tests
+  , URI.tests
   ]
 
 systemTests :: TestTree

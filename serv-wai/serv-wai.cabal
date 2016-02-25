@@ -61,10 +61,12 @@ test-suite serv-test
   hs-source-dirs:      test
   main-is:             Spec.hs
   other-modules:
+
     Examples.Ex1
-    Examples.Ex2
+
   build-depends:       base
                      , serv
+                     , serv-wai
 
                      , HUnit
                      , QuickCheck

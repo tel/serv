@@ -1,13 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Test.Serv.URI where
+module Test.Network.HTTP.Kinder.URI where
 
-import qualified Data.Text as Text
-import           Serv.URI
+import           Data.Proxy
+import qualified Data.Text               as Text
+import           Network.HTTP.Kinder.URI
+import           Test.HUnit
 import           Test.Tasty
-import qualified Test.Tasty.HUnit as Hu
-import Test.HUnit
-import Data.Proxy
+import qualified Test.Tasty.HUnit        as Hu
 
 tests :: TestTree
 tests =

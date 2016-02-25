@@ -105,7 +105,7 @@ type family Impl (m :: * -> *) api where
   Impl m Abstract = m (Context -> Application)
 
   Impl m (OneOf apis) = HList (AllImpl m apis)
-  Impl m (Endpoint ann hs) = HList (AllHandlers m hs)
+  Impl m (Endpoint ann hs) = FieldRec (AllHandlers m hs)
 
   Impl m (Const s :> api) = Impl m api
   Impl m (HeaderAs s v :> api) = Impl m api
@@ -119,7 +119,14 @@ type family AllImpl m apis where
 
 type family AllHandlers m hs where
   AllHandlers m '[] = '[]
-  AllHandlers m (h ': hs) = ImplHandler m h ': AllHandlers m hs
+  AllHandlers m (h ': hs) =
+    '(VerbOf h, ImplHandler m h) ': AllHandlers m hs
+
+type family VerbOf h where
+  VerbOf (CaptureBody ts a h) = VerbOf h
+  VerbOf (CaptureHeaders hs h) = VerbOf h
+  VerbOf (CaptureQuery qs h) = VerbOf h
+  VerbOf (Method v os) = v
 
 type family ImplHandler m h where
   ImplHandler m (CaptureBody ts a h) = a -> ImplHandler m h
@@ -229,9 +236,11 @@ server (SEndpoint _ann handlers) impls = Server $ do
               runServer (handles verbs handlers impls)
           | otherwise -> runServer (methodNotAllowed verbs)
 
-handles :: (ConstrainEndpoint hs, Monad m) => Set Verb -> Sing hs -> HList (AllHandlers m hs) -> Server m
+handles
+  :: (ConstrainEndpoint hs, Monad m)
+  => Set Verb -> Sing hs -> FieldRec (AllHandlers m hs) -> Server m
 handles verbs SNil RNil = methodNotAllowed verbs
-handles verbs (SCons sHandler sRest) (Identity handler :& implRest) =
+handles verbs (SCons sHandler sRest) (ElField verb handler :& implRest) =
   handle sHandler handler
   `orElse`
   handles verbs sRest implRest

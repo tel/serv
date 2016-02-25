@@ -1,4 +1,7 @@
-{-# LANGUAGE DataKinds, PolyKinds, GADTs #-}
+{-# LANGUAGE DataKinds          #-}
+{-# LANGUAGE ExplicitNamespaces #-}
+{-# LANGUAGE GADTs              #-}
+{-# LANGUAGE PolyKinds          #-}
 
 -- | Re-exports of useful "Data.Vinyl" 'Rec' types
 module Serv.Wai.Rec (
@@ -18,11 +21,15 @@ module Serv.Wai.Rec (
   , (<+>)
   , (++)
 
+  -- * Type-level methods
+  , type (++)
+
 ) where
 
-import Data.Vinyl.Core
-import Data.Functor.Identity
-import Data.Singletons
+import           Data.Functor.Identity
+import           Data.Singletons
+import           Data.Vinyl.Core
+import           Data.Vinyl.TypeLevel
 
 -- FieldRec
 -- ----------------------------------------------------------------------------

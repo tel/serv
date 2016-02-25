@@ -17,11 +17,11 @@ module Serv.Wai.Response (
   , SomeResponse
 
   -- ** Construction
-  , empty
-  , addBody
-  , removeBody
-  , addHeader
-  , addHeaderQuiet
+  , emptyResponse
+  , withBody
+  , withoutBody
+  , withHeader
+  , withHeaderQuiet
 
   -- ** Finalization
   -- | When constructing a response in our server implementation we do not
@@ -62,29 +62,29 @@ respond :: ElemOf rs '(s, r) => Response '(s, r) -> SomeResponse rs
 respond = inject
 
 -- | The empty response at a given status code: no headers, no body.
-empty :: sing s -> Response '(s, Api.Respond '[] Api.Empty)
-empty _ = EmptyResponse [] RNil
+emptyResponse :: sing s -> Response '(s, Api.Respond '[] Api.Empty)
+emptyResponse _ = EmptyResponse [] RNil
 
 -- | Attach a body to an empty 'Response'.
-addBody
+withBody
   :: a -> Response '(s, Api.Respond hs Api.Empty)
   -> Response '(s, Api.Respond hs (Api.HasBody ts a))
-addBody a (EmptyResponse secretHeaders headers) =
+withBody a (EmptyResponse secretHeaders headers) =
   ContentResponse secretHeaders headers a
 
 -- | Eliminate a body in a 'Response', returning it to 'Api.Empty'.
-removeBody
+withoutBody
   :: Response '(s, Api.Respond hs (Api.HasBody ts a))
   -> Response '(s, Api.Respond hs Api.Empty)
-removeBody (ContentResponse secretHeaders headers a) =
+withoutBody (ContentResponse secretHeaders headers a) =
   EmptyResponse secretHeaders headers
 
 -- | Adds a header to a 'Response'
-addHeader
+withHeader
   :: Sing name -> value
   -> Response '(s, Api.Respond headers body)
   -> Response '(s, Api.Respond ( '(name, value) ': headers) body)
-addHeader s val r = case r of
+withHeader s val r = case r of
   ContentResponse secretHeaders headers body ->
     ContentResponse secretHeaders (s =: val <+> headers) body
   EmptyResponse secretHeaders headers ->
@@ -92,12 +92,12 @@ addHeader s val r = case r of
 
 -- | Unlike 'addHeader', 'addHeaderQuiet' allows you to add headers not
 -- explicitly specified in the api specification.
-addHeaderQuiet
+withHeaderQuiet
   :: HeaderEncode name value
   => Sing name -> value
   -> Response '(s, Api.Respond headers body)
   -> Response '(s, Api.Respond headers body)
-addHeaderQuiet s value r =
+withHeaderQuiet s value r =
   case headerEncodePair s value of
     Nothing -> r
     Just newHeader ->
