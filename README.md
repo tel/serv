@@ -10,8 +10,23 @@ statically guaranteed to conform to your specification.
 
 ## Example API specification
 
-(*This to come, recent changes in the API language have invalidated existing
-examples. -tel*)
+```haskell
+type RawBody = HasBody '[TextPlain] Text
+type JSONBody = HasBody '[JSON] [Int]
+
+type TheApi
+  = Const “user” :> 
+      Endpoint ()
+      '[
+        Method GET
+         '[ Ok ::: Respond 
+                     '[Lastmodified ::: UTCTime]
+                     (HasBody ‘[JSON, TextPlain] User) ]
+       , CaptureBody ‘[JSON, TextPlain] User
+           (Method PUT
+              '[ Ok ::: Respond '[Location ::: URI] Empty) ])
+       ]
+```
 
 ## Libraries
 
