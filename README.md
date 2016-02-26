@@ -26,8 +26,9 @@ type PutResponses =
 type TheApi
   = Const “user” :> 
       Endpoint ()
-      '[ Method GET GetResponses
-       , CaptureBody ‘[JSON, TextPlain] User (Method PUT PutResponses)
+      '[ GET ::: Outputs GetResponses
+       , PUT ::: CaptureBody ‘[JSON, TextPlain] User 
+                   (Outputs PutResponses)
        ]
 ```
 

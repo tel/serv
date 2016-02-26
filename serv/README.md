@@ -46,7 +46,7 @@ and JSON. Clients offer this data back to people and must know how to decode
 
 If you hit a HTTP server at a given endpoint with a given verb it might respond
 with any number of possible `Respond` types corresponding to different response
-statuses. The `Method` type allows us to describe this situation.
+statuses. The `Outputs` type allows us to describe this situation.
 
 For instance, let’s say that if we `GET` this resource we’ll either get our
 `User` value (with a `200` response) or nothing at all (with a `404`) response.
@@ -54,15 +54,15 @@ We model this situation like so:
 
 ```haskell
 type Handler1 =
-  Method GET
-  ‘[ Ok ::: Respond2
-   , NotFound ::: Respond1
-   ]
+  Ouputs
+    ‘[ Ok ::: Respond2
+     , NotFound ::: Respond1
+     ]
 ```
 
 In particular, we’ve constructed a `Handler`-kinded type which consists of a
-`Verb` specification (in this case `GET`) and `Respond` types corresponding to
-every error code which may be returned by the server.
+set of `Respond` types corresponding to every error code which may be returned
+by the server.
 
 At the handler level we might also suggest that we need more data from the
 request. For instance, we have the following types
@@ -93,7 +93,12 @@ a few `Handler`s under a specific `Endpoint`. For instance, let’s say we have
 some more `Handler`s numbered 3 and 4, here’s our first `Endpoint`
 
 ```haskell
-type Api1 = Endpoint () ‘[Handler2, Handler3, Handler4]
+type Api1 = 
+  Endpoint () 
+    ‘[ GET ::: Handler2
+     , PUT ::: Handler3
+     , DELETE ::: Handler4
+     ]
 ```
 
 That’s all there is to it! (Ignore the `()` argument. It’s useful later for
