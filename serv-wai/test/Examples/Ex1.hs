@@ -38,25 +38,24 @@ apiSing :: Sing TheApi
 apiSing = sing
 
 impl :: Impl IO TheApi
-impl =
-  SGET =:
-    (return . respond
-       $ emptyResponse SOk
-       & withHeader SCacheControl "foo"
-       & withBody "Hello")
-  <+>
-  SPUT =:
-    (return . respond
-       $ emptyResponse SOk
-       & withHeader SCacheControl "foo"
-       & withBody [1, 2, 3])
-  <+>
-  SDELETE =:
-    (return . respond
-       $ emptyResponse SInternalServerError
-       & withBody "Server error")
-  <+>
-  RNil
+impl = get <+> put <+> delete <+> RNil where
+  get =
+    SGET =:
+      (return . respond
+         $ emptyResponse SOk
+         & withHeader SCacheControl "foo"
+         & withBody "Hello")
+  put =
+    SPUT =:
+      (return . respond
+         $ emptyResponse SOk
+         & withHeader SCacheControl "foo"
+         & withBody [1, 2, 3])
+  delete =
+    SDELETE =:
+      (return . respond
+         $ emptyResponse SInternalServerError
+         & withBody "Server error")
 
 theServer :: Server IO
 theServer = server apiSing impl
