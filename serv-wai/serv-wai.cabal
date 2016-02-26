@@ -1,5 +1,5 @@
 name:                serv-wai
-version:             0.1.0.0
+version:             0.2.0.0
 synopsis:            Dependently typed API servers with Serv
 description:
   Implement "Network.Wai" style servers matching "Serv.Api" style API

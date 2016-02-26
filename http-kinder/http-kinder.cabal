@@ -1,5 +1,5 @@
 name:                http-kinder
-version:             0.1.0.0
+version:             0.2.0.0
 synopsis:            Generic kinds and types for working with HTTP
 description:
   Types and kinds for describing HTTP requests and responsts.
