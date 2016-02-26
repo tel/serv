@@ -27,6 +27,7 @@ library
   exposed-modules:
 
     Serv.Wai
+    Serv.Wai.Analysis
     Serv.Wai.Prelude
     Serv.Wai.Type
     Serv.Wai.Error

@@ -11,7 +11,7 @@
 -- types.
 --
 -- (/A little rough right now, sorry/)
-module Serv.Api.Analysis where
+module Serv.Wai.Analysis where
 
 import           Data.Monoid
 import           Data.Set                      (Set)

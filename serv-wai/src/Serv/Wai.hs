@@ -93,7 +93,7 @@ import           Network.HTTP.Kinder.URI       (URIDecode (..))
 import           Network.HTTP.Kinder.Verb      (Verb (..))
 import           Network.Wai
 import           Serv.Api
-import           Serv.Api.Analysis
+import           Serv.Wai.Analysis
 import           Serv.Wai.Corec
 import           Serv.Wai.Rec
 import           Serv.Wai.Response
