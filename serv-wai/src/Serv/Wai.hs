@@ -117,20 +117,14 @@ type family AllImpl m apis where
 
 type family AllHandlers m hs where
   AllHandlers m '[] = '[]
-  AllHandlers m (h ': hs) =
-    '(VerbOf h, ImplHandler m h) ': AllHandlers m hs
-
-type family VerbOf h where
-  VerbOf (CaptureBody ts a h) = VerbOf h
-  VerbOf (CaptureHeaders hs h) = VerbOf h
-  VerbOf (CaptureQuery qs h) = VerbOf h
-  VerbOf (Method v os) = v
+  AllHandlers m ( '(v, h) ': hs) =
+    '(v, ImplHandler m h) ': AllHandlers m hs
 
 type family ImplHandler m h where
   ImplHandler m (CaptureBody ts a h) = a -> ImplHandler m h
   ImplHandler m (CaptureHeaders hs h) = FieldRec hs -> ImplHandler m h
   ImplHandler m (CaptureQuery qs h) = FieldRec qs -> ImplHandler m h
-  ImplHandler m (Method v os) = m (SomeResponse os)
+  ImplHandler m (Outputs os) = m (SomeResponse os)
 
 type family Constrain a :: Constraint where
   Constrain Abstract = ()
@@ -148,13 +142,13 @@ type family Constrain a :: Constraint where
   Constrain (Header n a :> api) = (Constrain api, HeaderDecode n a)
   Constrain (Wildcard :> api) = Constrain api
 
-type family ConstrainEndpoint hs :: Constraint where
+type family ConstrainEndpoint (hs :: [(Verb, Handler*)]) :: Constraint where
   ConstrainEndpoint '[] = ()
-  ConstrainEndpoint (h ': hs) =
+  ConstrainEndpoint ( '(v, h) ': hs) =
     (ConstrainHandler h, ConstrainEndpoint hs)
 
 type family ConstrainHandler h :: Constraint where
-  ConstrainHandler (Method verb os) =
+  ConstrainHandler (Outputs os) =
     ConstrainOutputs os
   ConstrainHandler (CaptureBody ctypes a h) =
     ConstrainHandler h -- TODO
@@ -238,16 +232,16 @@ handles
   :: (ConstrainEndpoint hs, Monad m)
   => Set Verb -> Sing hs -> FieldRec (AllHandlers m hs) -> Server m
 handles verbs SNil RNil = methodNotAllowed verbs
-handles verbs (SCons sHandler sRest) (ElField _verb handler :& implRest) =
+handles verbs (SCons (STuple2 sVerb sHandler) sRest) (ElField _verb handler :& implRest) =
   handle sHandler handler
   `orElse`
   handles verbs sRest implRest
 handles _ _ _ = bugInGHC
 
-handle :: (ConstrainHandler h, Monad m) => Sing h -> ImplHandler m h -> Server m
-handle sH impl = Server $
+handle :: forall h m (v :: Verb) . (ConstrainHandler h, Monad m) => Sing v -> Sing h -> ImplHandler m h -> Server m
+handle sVerb sH impl = Server $
   case sH of
-    SMethod sVerb sAlts -> do
+    SOutputs sAlts -> do
       mayVerb <- getVerb
       let verbProvided = fromSing sVerb
       case mayVerb of

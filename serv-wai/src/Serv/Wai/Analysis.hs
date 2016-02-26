@@ -39,18 +39,19 @@ instance Monoid EndpointAnalysis where
     , headersEmitted = headersEmitted ea <> headersEmitted eb
     }
 
-inspectEndpoint :: forall (hs :: [Handler *]) . Sing hs -> EndpointAnalysis
+inspectEndpoint :: forall (hs :: [(Verb, Handler *)]) . Sing hs -> EndpointAnalysis
 inspectEndpoint s =
   case s of
     SNil -> mempty
-    SCons sHandler sRest -> inspectHandler sHandler <> inspectEndpoint sRest
+    SCons (STuple2 sVerb sHandler) sRest ->
+      inspectHandler sVerb sHandler <> inspectEndpoint sRest
 
-inspectHandler :: forall (h :: Handler *) . Sing h -> EndpointAnalysis
-inspectHandler s =
+inspectHandler :: forall (v :: Verb) (h :: Handler *) . Sing v -> Sing h -> EndpointAnalysis
+inspectHandler sVerb s =
   case s of
-    SCaptureQuery _ sNext -> inspectHandler sNext
-    SCaptureBody _ _ sNext -> inspectHandler sNext
-    SMethod sVerb sResponses ->
+    SCaptureQuery _ sNext -> inspectHandler sVerb sNext
+    SCaptureBody _ _ sNext -> inspectHandler sVerb sNext
+    SOutputs sResponses ->
       case sResponses of
         SNil -> mempty
         SCons (STuple2 _sCode (SRespond sHdrs _sBody)) sRest ->
@@ -58,14 +59,14 @@ inspectHandler s =
           { verbsHandled = Set.singleton (fromSing sVerb)
           , headersEmitted = headerNames sHdrs
           , headersExpected = Set.empty
-          } <> inspectHandler (SMethod sVerb sRest)
+          } <> inspectHandler sVerb (SOutputs sRest)
     SCaptureHeaders sHdrs sNext ->
       EndpointAnalysis
       { verbsHandled = Set.empty
       , headersEmitted = Set.empty
       , headersExpected = headerNames sHdrs
       }
-      <> inspectHandler sNext
+      <> inspectHandler sVerb sNext
 
 headerNames :: forall (hts :: [(HeaderName, k)]) . Sing hts -> Set SomeHeaderName
 headerNames s =
@@ -74,8 +75,8 @@ headerNames s =
     SCons (STuple2 sHt _sTy) sRest ->
       Set.insert (SomeHeaderName sHt) (headerNames sRest)
 
-inspectVerbs :: forall (hs :: [Handler *]) . Sing hs -> Set Verb
+inspectVerbs :: forall (hs :: [(Verb, Handler *)]) . Sing hs -> Set Verb
 inspectVerbs = verbsHandled . inspectEndpoint
 
-headersExpectedOf :: forall (hs :: [Handler *]) . Sing hs -> Set SomeHeaderName
+headersExpectedOf :: forall (hs :: [(Verb, Handler *)]) . Sing hs -> Set SomeHeaderName
 headersExpectedOf = headersExpected . inspectEndpoint

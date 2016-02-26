@@ -26,7 +26,7 @@ module Serv.Api (
   , Sing (
         SEndpoint, SOneOf, SAbstract, (:%>)
       , SConst, SHeaderAs, SSeg, SHeader, SWildcard
-      , SMethod, SCaptureBody, SCaptureHeaders, SCaptureQuery
+      , SOutputs, SCaptureBody, SCaptureHeaders, SCaptureQuery
       , SRespond
       , SHasBody, SEmpty
     )
@@ -42,7 +42,7 @@ module Serv.Api (
   , Const, HeaderAs, Seg, Header, Wildcard
 
   -- ** 'Handler'
-  , Method, CaptureBody, CaptureHeaders, CaptureQuery
+  , Outputs, CaptureBody, CaptureHeaders, CaptureQuery
 
   -- ** 'Output'
   , Respond
@@ -103,10 +103,9 @@ type Respond hdrs body = 'Respond hdrs body
 -- In order to complete a 'Handler''s operation it may demand data from the
 -- request such as headers or the request body.
 data Handler star
-  = Method Verb [(Status, Output star)]
-    -- ^ A "core" 'Handler' definition which describes the 'Verb' it
-    -- responds to along with a set of response headers and a chance to
-    -- attach a response 'Body'.
+  = Outputs [(Status, Output star)]
+    -- ^ Minimally, a 'Handler' is just a list of alternatives of outputs
+    -- the server could produce, each tagged by their status code.
   | CaptureBody [star] star (Handler star)
     -- ^ Augment a 'Handler' to include requirements of a request body.
   | CaptureHeaders [(HeaderName, star)] (Handler star)
@@ -116,13 +115,13 @@ data Handler star
     -- string
 
 data instance Sing (h :: Handler *)
-  = forall v ts . h ~ Method v ts => SMethod (Sing v) (Sing ts)
+  = forall ts . h ~ Outputs ts => SOutputs (Sing ts)
   | forall ts a k . h ~ CaptureBody ts a k => SCaptureBody (Sing ts) (Sing a) (Sing k)
   | forall ts k . h ~ CaptureHeaders ts k => SCaptureHeaders (Sing ts) (Sing k)
   | forall ts k . h ~ CaptureQuery ts k => SCaptureQuery (Sing ts) (Sing k)
 
-instance (SingI v, SingI ts) => SingI ('Method v ts :: Handler *) where
-  sing = SMethod sing sing
+instance (SingI ts) => SingI ('Outputs ts :: Handler *) where
+  sing = SOutputs sing
 
 instance (SingI ts, SingI a, SingI k) => SingI ('CaptureBody ts a k :: Handler *) where
   sing = SCaptureBody sing sing sing
@@ -133,10 +132,10 @@ instance (SingI ts, SingI k) => SingI ('CaptureHeaders ts k :: Handler *) where
 instance (SingI ts, SingI k) => SingI ('CaptureQuery ts k :: Handler *) where
   sing = SCaptureQuery sing sing
 
-type Method verb responses = 'Method verb responses
-type CaptureBody cTypes ty method = 'CaptureBody cTypes ty method
-type CaptureHeaders hdrs method = 'CaptureHeaders hdrs method
-type CaptureQuery query method = 'CaptureQuery query method
+type Outputs responses = 'Outputs responses
+type CaptureBody cTypes ty handler = 'CaptureBody cTypes ty handler
+type CaptureHeaders hdrs handler = 'CaptureHeaders hdrs handler
+type CaptureQuery query handler = 'CaptureQuery query handler
 
 
 
@@ -193,10 +192,10 @@ type Wildcard = 'Wildcard
 -- | 'Api's describe collections of HTTP endpoints accessible at
 -- various segmented 'Path's.
 data Api star
-  = Endpoint star [Handler star]
+  = Endpoint star [(Verb, Handler star)]
     -- ^ An 'Endpoint' describes a root API which responds only to requests
-    -- with empty paths. It matches on HTTP 'Method's which demand 'Verb's,
-    -- 'HeaderName's, and 'Body's.
+    -- with empty paths. It matches on HTTP 'Verb's, 'HeaderName's, and
+    -- 'Body's.
     --
     -- 'Endpoint' differs from 'OneOf' in that it can only choose between
     -- possible methods and automatically provides an 'OPTIONS' response.
