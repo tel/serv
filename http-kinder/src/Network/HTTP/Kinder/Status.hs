@@ -297,7 +297,7 @@ parseStatus c =
 
     other ->
       case toSing (fromIntegral other) :: SomeSing ('KProxy :: KProxy Nat) of
-        SomeSing c -> SomeStatus (SCustomStatus c)
+        SomeSing code -> SomeStatus (SCustomStatus code)
 
 -- | A data type representing HTTP statuses (codes). Much more importantly,
 -- with @DataKinds@ enabled this becomes a kind describing types, one for

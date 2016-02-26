@@ -14,16 +14,14 @@
 module Serv.Api.Analysis where
 
 import           Data.Monoid
-import           Data.Set                     (Set)
-import qualified Data.Set                     as Set
+import           Data.Set                      (Set)
+import qualified Data.Set                      as Set
 import           Data.Singletons
 import           Data.Singletons.Prelude.List
 import           Data.Singletons.Prelude.Tuple
-import           Data.Text                    (Text)
-import           GHC.TypeLits
+import           Network.HTTP.Kinder.Header    (HeaderName, SomeHeaderName (..))
+import           Network.HTTP.Kinder.Verb      (Verb)
 import           Serv.Api
-import           Network.HTTP.Kinder.Header         (SomeHeaderName (..), HeaderName)
-import           Network.HTTP.Kinder.Verb (Verb)
 
 data EndpointAnalysis
   = EndpointAnalysis

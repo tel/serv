@@ -20,7 +20,7 @@ module Serv.Api (
   , Body (..)
 
   -- ** Syntax sugar
-  , (:::) (..)
+  , type (:::)
 
   -- * Singletons
   , Sing (

@@ -91,14 +91,12 @@ import           Network.HTTP.Kinder.Status    (Status)
 import qualified Network.HTTP.Kinder.Status    as St
 import           Network.HTTP.Kinder.URI       (URIDecode (..))
 import           Network.HTTP.Kinder.Verb      (Verb (..))
-import           Network.Wai                   (Application)
 import           Network.Wai
 import           Serv.Api
 import           Serv.Api.Analysis
 import           Serv.Wai.Corec
 import           Serv.Wai.Rec
 import           Serv.Wai.Response
-import           Serv.Wai.Response             (SomeResponse)
 import           Serv.Wai.Type
 
 type family Impl (m :: * -> *) api where
@@ -240,10 +238,11 @@ handles
   :: (ConstrainEndpoint hs, Monad m)
   => Set Verb -> Sing hs -> FieldRec (AllHandlers m hs) -> Server m
 handles verbs SNil RNil = methodNotAllowed verbs
-handles verbs (SCons sHandler sRest) (ElField verb handler :& implRest) =
+handles verbs (SCons sHandler sRest) (ElField _verb handler :& implRest) =
   handle sHandler handler
   `orElse`
   handles verbs sRest implRest
+handles _ _ _ = bugInGHC
 
 handle :: (ConstrainHandler h, Monad m) => Sing h -> ImplHandler m h -> Server m
 handle sH impl = Server $
@@ -383,5 +382,5 @@ encodeHeaders' :: AllHeaderEncodes rs => FieldRec rs -> [Maybe (CI S.ByteString,
 encodeHeaders' rec =
   case rec of
     RNil -> []
-    ElField sing val :& rest ->
-      headerEncodePair sing val : encodeHeaders' rest
+    ElField s val :& rest ->
+      headerEncodePair s val : encodeHeaders' rest

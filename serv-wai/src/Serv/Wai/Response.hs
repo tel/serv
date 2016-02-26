@@ -76,7 +76,7 @@ withBody a (EmptyResponse secretHeaders headers) =
 withoutBody
   :: Response '(s, Api.Respond hs (Api.HasBody ts a))
   -> Response '(s, Api.Respond hs Api.Empty)
-withoutBody (ContentResponse secretHeaders headers a) =
+withoutBody (ContentResponse secretHeaders headers _) =
   EmptyResponse secretHeaders headers
 
 -- | Adds a header to a 'Response'

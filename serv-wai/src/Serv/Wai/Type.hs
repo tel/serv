@@ -61,9 +61,7 @@ module Serv.Wai.Type (
 
 ) where
 
-import           Control.Monad.IO.Class
 import           Control.Monad.Morph
-import           Control.Monad.Reader
 import           Control.Monad.State
 import qualified Data.ByteString            as S
 import qualified Data.ByteString.Lazy       as Sl
@@ -152,6 +150,7 @@ serverApplication' server xform = do
     case res of
       RoutingError err -> xform ctx (defaultRoutingErrorResponse err)
       WaiResponse resp -> xform ctx resp
+      _ -> error "Recieved 'Application' value in 'serverApplication'' impl"
 
 -- | Converts a @'Server' 'IO'@ into a regular Wai 'Application' value. The
 -- most general of the @serverApplication*@ functions, parameterized on
@@ -232,7 +231,7 @@ class Contextual m where
   -- | Asserts that we expect a header to take a given value; returns the
   -- validity of that expectation.
   expectHeader
-    :: forall a (n :: HeaderName)
+    :: forall (n :: HeaderName)
     . Sing n -> Text -> m Bool
 
   -- | Pulls the value of a query parameter, attempting to parse it
@@ -240,31 +239,31 @@ class Contextual m where
 
 -- | (internal) gets the raw header data
 getHeaderRaw
-  :: forall m a (n :: HeaderName)
+  :: forall m (n :: HeaderName)
   . Monad m => Sing n -> StateT Context m (Maybe S.ByteString)
-getHeaderRaw sing = do
+getHeaderRaw s = do
   hdrs <- gets ctxHeaders
-  return $ Map.lookup (headerName sing) hdrs
+  return $ Map.lookup (headerName s) hdrs
 
 -- | (internal) declare that a header was accessed (and possibly that is
 -- should take a certain value)
 declareHeader
-  :: forall m a (n :: HeaderName)
+  :: forall m (n :: HeaderName)
   . Monad m => Sing n -> Maybe Text -> StateT Context m ()
-declareHeader sing val =
+declareHeader s val =
   modify $ \ctx ->
     ctx { ctxHeaderAccess =
             Map.insert
-              (headerName sing) val
+              (headerName s) val
               (ctxHeaderAccess ctx) }
 
 -- | (internal) gets the raw query data
 getQueryRaw
-  :: forall m a (n :: Symbol)
+  :: forall m (n :: Symbol)
   . Monad m => Sing n -> StateT Context m (QueryKeyState Text)
-getQueryRaw sing = do
+getQueryRaw s = do
   qs <- gets ctxQuery
-  let qKey = withKnownSymbol sing (fromString (symbolVal sing))
+  let qKey = withKnownSymbol s (fromString (symbolVal s))
   return $ case Map.lookup qKey qs of
              Nothing -> QueryKeyAbsent
              Just Nothing -> QueryKeyPresent
@@ -272,10 +271,10 @@ getQueryRaw sing = do
 
 -- | (internal) declare that a query key was accessed
 declareQuery
-  :: forall m a (n :: Symbol)
+  :: forall m (n :: Symbol)
   . Monad m => Sing n -> StateT Context m ()
-declareQuery sing = do
-  let qKey = withKnownSymbol sing (fromString (symbolVal sing))
+declareQuery s = do
+  let qKey = withKnownSymbol s (fromString (symbolVal s))
   modify $ \ctx ->
     ctx { ctxQueryAccess = qKey : ctxQueryAccess ctx }
 
@@ -297,7 +296,7 @@ instance Monad m => Contextual (StateT Context m) where
   popSegment = do
     state $ \ctx ->
       case ctxPathZipper ctx of
-        (past, []) -> (Nothing, ctx)
+        (_past, []) -> (Nothing, ctx)
         (past, seg:future) ->
           (Just seg, ctx { ctxPathZipper = (seg:past, future) })
 
@@ -307,20 +306,20 @@ instance Monad m => Contextual (StateT Context m) where
         (past, fut) ->
           (fut, ctx { ctxPathZipper = (reverse fut ++ past, []) })
 
-  getHeader sing = do
-    declareHeader sing Nothing
-    mayVal <- getHeaderRaw sing
-    return (headerDecodeBS sing mayVal)
+  getHeader s = do
+    declareHeader s Nothing
+    mayVal <- getHeaderRaw s
+    return (headerDecodeBS s mayVal)
 
-  expectHeader sing expected = do
-    declareHeader sing (Just expected)
-    mayVal <- fmap (fmap Text.decodeUtf8) (getHeaderRaw sing)
+  expectHeader s expected = do
+    declareHeader s (Just expected)
+    mayVal <- fmap (fmap Text.decodeUtf8) (getHeaderRaw s)
     return (maybe False (== expected) mayVal)
 
-  getQuery sing = do
-    declareQuery sing
-    qks <- getQueryRaw sing
-    return (queryDecode sing qks)
+  getQuery s = do
+    declareQuery s
+    qks <- getQueryRaw s
+    return (queryDecode s qks)
 
 -- Context
 -- ----------------------------------------------------------------------------

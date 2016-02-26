@@ -42,13 +42,12 @@ module Network.HTTP.Kinder.MediaType (
   , decodersOf
 
   -- * Re-exports from "Network.HTTP.Media"
-  , MediaType (..)
+  , MediaType ()
   , mainType, subType, (/?), (/.)
-  , Quality (..)
+  , Quality ()
 
 ) where
 
-import           Control.Applicative
 import qualified Data.Aeson                   as Aeson
 import qualified Data.ByteString              as S
 import qualified Data.ByteString.Lazy         as Sl
@@ -61,7 +60,7 @@ import           Data.Text                    (Text)
 import qualified Data.Text.Encoding           as Text
 import           GHC.Exts
 import           GHC.TypeLits
-import           Network.HTTP.Media           (MediaType (..), Quality (..),
+import           Network.HTTP.Media           (MediaType (), Quality (),
                                                mainType, matchQuality, subType,
                                                (/.), (//), (/:), (/?))
 
@@ -173,12 +172,12 @@ negotiatedMimeDecode SNil = Nothing
 negotiatedMimeDecode valid@(SCons defaultMt _) =
   -- This memoizes the construction of the decoders map so we do less
   -- type-level list work.
-  Just (decode defaultDec (Map.keys decoderMap) decoderMap)
+  Just (decode defaultDec decoderMap)
   where
     decoderMap = decodersOf valid
     defaultDec = (mediaType defaultMt, mimeDecode defaultMt)
 
-    decode (theDefaultMt, theDefaultDec) provided theDecMap maybeCt bytes =
+    decode (_theDefaultMt, theDefaultDec) theDecMap maybeCt bytes =
       case maybeCt of
         Nothing -> resultDecode (theDefaultDec bytes)
         Just ct ->
