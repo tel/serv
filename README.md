@@ -11,20 +11,23 @@ statically guaranteed to conform to your specification.
 ## Example API specification
 
 ```haskell
-type RawBody = HasBody '[TextPlain] Text
-type JSONBody = HasBody '[JSON] [Int]
+
+type GetResponses = 
+  ‘[Ok ::: Respond 
+             '[Lastmodified ::: UTCTime]
+             (HasBody ‘[JSON, TextPlain] User)]
+
+type PutResponses = 
+  '[Ok ::: Respond 
+             '[Location ::: URI] 
+             Empty]
+
 
 type TheApi
   = Const “user” :> 
       Endpoint ()
-      '[
-        Method GET
-         '[ Ok ::: Respond 
-                     '[Lastmodified ::: UTCTime]
-                     (HasBody ‘[JSON, TextPlain] User) ]
-       , CaptureBody ‘[JSON, TextPlain] User
-           (Method PUT
-              '[ Ok ::: Respond '[Location ::: URI] Empty) ])
+      '[ Method GET GetResponses
+       , CaptureBody ‘[JSON, TextPlain] User (Method PUT PutResponses)
        ]
 ```
 
