@@ -1,302 +1,126 @@
 
-# Serv
+# `serv-api`, kind-safe types for API descriptions
 
-*Dependently typed API servers, clients, and documentation.*
-
-[![Build Status](https://travis-ci.org/tel/serv.svg)](https://travis-ci.org/tel/serv)
-
-Serv separates the description of an API from the implementation of the server,
-the client definitions, and the documentation. Unlike other such efforts, the
-API descriptions are *types* and type level computation can be used to ensure
-that the server, client, and documentation *always match*.
-
-# Status and how you can help!
-
-**Serv is still in the early design phases.** Contribution is *very welcome*
-along the lines of the public API (the API types, especially) and functionality
-requests. I’m also really quite bad at naming things sometimes and would not
-mind *at all* some commentary.
-
-Files to critique:
-
-- [Serv.Internal.Api](https://github.com/tel/serv/blob/master/src/Serv/Internal/Api.hs)
-  which is where the types and kinds of the API interface definition language
-  are described. This is easily the *most vital* part of Serv.
-- [Serv.Internal.Header](https://github.com/tel/serv/blob/master/src/Serv/Internal/Header.hs)
-  is where a *big*, *complicated* type encodes all common headers allowing for
-  extension. This feels like a bad idea sometimes, but it certainly *seems* to
-  fit with the house hasochism style.
-- [Serv.Internal.Header.Serialization](https://github.com/tel/serv/blob/master/src/Serv/Internal/Header/Serialization.hs)
-  describes how to give semantics to text blobs by claiming that they’re
-  supposed to be a representation of some Haskell type under the regime of a
-  given header. What kinds of things should be added here? How can Serv best
-  handle the orphan instance issue?
-- [Serv.Internal.Api.Annotation](https://github.com/tel/serv/blob/master/src/Serv/Internal/Api/Annotation.hs)
-  Currently this is basically unused, but it’s goal is to provide a way to have
-  a hook into *endpoints* instead of the data types they return (*a la*
-  Servant) for documentation purposes. The design here is super speculative.
-- [Serv.Internal.Server](https://github.com/tel/serv/tree/master/src/Serv/Internal/Server)
-  This whole hunk of junk is the driving use case for the entire library at the
-  moment! It’s also sloppy as all hell at times as is resolves itself against
-  the changing `Api` API.
-
-I’m also very interested in tips and tricks for working with singleton types as
-that’s a key piece of how Serv works!
-
-# Overview
-
-Most APIs have a simple regular structure which is shared by the server, the
-clients, and (hopefully) the documentation. *This repetition is bad* leading to
-overhead, mismatching, and casualities of API drift in clients and
+This package offers kinds and types for constructing “API description types”.
+These API description types---technically, types of kind `Api *`---contain much
+of the information one needs to understand how to interact with an API. Other
+packages in the Serv ecosystem adjoin a little more information to these `Api`
+types and then use them to swiftly generate servers, clients, and
 documentation.
 
-Serv solves this problem by letting you specify your entire API structure once,
-canonically, and then either implement or derive servers, clients, and
-documentation from it.
+## A quick overview of `Api`-kinded types
 
-This solution is not new, but Serv takes it one step further by having the API
-specification be written *in the type system* which allows for static assurance
-that the server, client, and documentation cannot possibly drift from one
-another.
+We’ll start from the basic building blocks of `Api` types and move upward.
 
-## How Serv Works
+### `Output`s
 
-Serv lets you specify your API as a type. 
-
-For instance, if your have an API-description type `A` then `Impl A IO` is the
-type of a server implementation (running in the `IO` monad) which necessarily
-follows the same structure as `A`. It will require this server to consume data
-read from the path, will automatically route things properly, and ensures that
-endpoints deliver the proper bodies and headers. 
-
-All of this is statically assured, constructed from data in `A`.
-
-This works by leveraging the weak *dependent type* capabilities in Haskell’s
-type system enabling compile-time analysis of the type structure of `A`.
-Whatever data can be read from `A` is used to handle the boring, repetitive
-parts of your server automatically. For the interesting parts, Serv requires
-that you specify the responses your server provides according to the exact
-specification listed in `A`.
-
-Similar type functions and analyses are performed to enable Serv to generate
-documentation and client libraries (these to come!).
-
-# Tutorial
-
-## Describing HTTP Methods
-
-The most basic component of an API is the `Method`. We begin describing APIs by
-listing the `Method`s they respond to. To do this, we define a set of types. For
-instance, a simple API might look like
+The first type of interest is called `Respond hs b`. It corresponds to a
+possible response from the server. For example:
 
 ```haskell
-{-# LANGUAGE DataKinds, TypeOperators #-}
+import Serv.Api.Prelude
 
-import Serv.Api
-
-type Method_1 = 'Method 'DELETE '[] 'Empty
+type Respond1 = Respond ‘[] Empty
 ```
 
-where the single-quotes indicate that we are using a data constructor at the
-type-level. For instance, Serv defines the type `data Verb = GET | PUT | DELETE
-| ...` but GHC's `DataKinds` extension allows us to treat this also as a set of
-types `'GET`, `'PUT`, `'DELETE`, etc. which all have *kind* `Verb`. Serv uses
-`DataKinds` extensively to enable kind-safe type-level programming in the same
-way that Haskell normally enables type-safe value-level programming.
-
-Above, `AMethod` is a type describing a single method, a `DELETE` method which
-produces an empty response with no special headers. We use a type-level list
-`'[]` to describe the set of headers returned.
-
-Another method might return a particular header:
+indicates a response with no response headers and an empty body. On the other
+hand,
 
 ```haskell
-import           Serv.Common (RawText)
-import qualified Serv.Header as H
-
-type Method_2 = 'Method 'POST '[ 'H.Location '::: RawText ] 'Empty
+type Respond2 = 
+  Respond 
+    ‘[LastModified ::: UTCTime] 
+    (Body ‘[JSON, PlainText] User)
 ```
 
-Here, `Method_2` must return the `Location` header specified by some `RawText`
-value. We use `(:::)` to link `H.HeaderName`s to Haskell types which *have
-semantics for* that header. `RawText` has semantics for every header since it
-just lets the server write out to the header directly. Otherwise, a header
-specification `h '::: ty` has semantics when we have an instance for
-`H.HeaderEncode h ty` and/or `H.HeaderDecode h ty` depending on whether we're
-interested in reading or writing such a header.
+indicates that the server will respond with a `User` value at either a JSON or
+plain text content type (depending on what the client negoatiates for). It also
+sets the `Last-Modified` response header to a `UTCTime` value. 
 
-Finally, we can talk about methods which have interesting response *bodies*. So
-far, `Method_1` and `Method_2` returned `'Empty` bodies, but we can fix that.
+Servers which produce this type must select a `UTCTime` to set as
+`Last-Modified` and must ensure that `User`s have encodings in both plain text
+and JSON. Clients offer this data back to people and must know how to decode
+`User` of at least one of these content types.
+
+### `Handler`s
+
+If you hit a HTTP server at a given endpoint with a given verb it might respond
+with any number of possible `Respond` types corresponding to different response
+statuses. The `Method` type allows us to describe this situation.
+
+For instance, let’s say that if we `GET` this resource we’ll either get our
+`User` value (with a `200` response) or nothing at all (with a `404`) response.
+We model this situation like so:
 
 ```haskell
-import           Data.Text (Text)
-import qualified Serv.ContentType as Ct
-
-type Method_3 = 'Method 'GET '[] ('Body '[ Ct.TextPlain ] Text)
+type Handler1 =
+  Method GET
+  ‘[ Ok ::: Respond2
+   , NotFound ::: Respond1
+   ]
 ```
 
-To specify a body we use the type `'Body ctypes bodyType` which specifies a type
-list of *content types* and a Haskell type for which values of provide the data
-used to generate the response body. In this case, we use the `"text/plain"`
-content type which has semantics for `Text` as there is an instance for
-`MimeEncode TextPlain Text` (namely, UTF-8 encoding).
+In particular, we’ve constructed a `Handler`-kinded type which consists of a
+`Verb` specification (in this case `GET`) and `Respond` types corresponding to
+every error code which may be returned by the server.
 
-## Methods become APIs
-
-A collection of methods forms an `Endpoint`
+At the handler level we might also suggest that we need more data from the
+request. For instance, we have the following types
 
 ```haskell
-type Endpoint_1 = 'Endpoint '[ Method_1, Method_2, Method_3 ]
+CaptureBody contentTypes ty nextHandler
+CaptureHeaders headerSpec nextHandler
+CaptureQuery querySpec nextHandler
 ```
 
-and Serv ensures that `'Endpoint`s always arise as lists of `'Method`s. We embed
-`'Endpoint`s within a tree of other `'Endpoint`s to form a complete `Api`
-description. The basic combinators for this are *choice* and *path augmentation*.
-
-The simplest path augmentation is to add a constant path segment in front of an
-endpoint
+which each modify a handler to capture some further information. For instance,
+if our request must specify a `User` in the query then we can represent that
+here
 
 ```haskell
-type Api_1 = 'Const "users" ':> Endpoint_1
+type Handler2 = CaptureQuery ‘[“id” ::: UserId] Handler1
 ```
 
-other path augmentations include *capture* of a particular segment
+> As a side note we might go ahead and explain this `(:::)` type operator that
+> keeps showing up: it’s just syntax sugar for a type-level tuple so that `a :::
+> b` is the same as `’(a, b)`. Infix syntax can be convenient for these `Api`
+> types, but it’s completely optional.
+
+### `Api`s
+
+We’re finally ready to specify a full `Api`. To do this, we just need to bundle
+a few `Handler`s under a specific `Endpoint`. For instance, let’s say we have
+some more `Handler`s numbered 3 and 4, here’s our first `Endpoint`
 
 ```haskell
-type Api_2 = 'Const "users" ':> 'Seg "user_id" Int ':> Endpoint_1
+type Api1 = Endpoint () ‘[Handler2, Handler3, Handler4]
 ```
 
-where we interpret the path segment as an `Int` or fail to match this path. We
-know how to interpret segments as `Int`s due to instances of
-`Serv.URI.URIDecode` or perhaps matching *all* subsequent path segments at once
-with a *wildcard*
+That’s all there is to it! (Ignore the `()` argument. It’s useful later for
+annotation and documentation.)
+
+Well, no, because we often want to describe whole `Api`s where there are
+choices of `Endpoint`s and they exist at various paths.
 
 ```haskell
-type Api_3 = 'Wildcard :> Endpoint_1
+type Api2 =
+  OneOf
+  ‘[ Const “user” :> Api1
+   , Const “book” :> Api2
+   , Const “car”  :> OneOf ‘[ Const “sedan” :> Api3, Const “truck” :> Api4 ]
+   [
 ```
 
-Given a number of path-augmented `'Endpoint`s we'd like to glue these together
-into a set of options which is done using `'OneOf`
+We might also want to capture data from the path as we go down it. For this we
+just replace `Const` path segments with `Seg` capture types
 
 ```haskell
-type Api_All =   'Const "api"
-             ':> 'OneOf '[ Api_1, Api_2, Api_3 ]
+type Api3 =
+  Seg “factory” FactoryId :> Seg “employee” EmployeeId :> ApiFactoryEmployee
 ```
 
-and from these pieces we can construct API matching trees of whatever shape we
-like.
+### Moving on
 
-## Servers are described by `Impl`ementations
-
-To write a server against the given `Api` description we construct a value of
-type `Impl api m` for the particular `Api` type we have. We can use GHCi's kind
-evaluator to see what `Impl Api_All IO` looks like:
-
-```haskell
-> :kind Impl Api_All IO
-Impl Api_All IO :: *
-= (IO (Response '[] 'Empty)
-   :<|> (IO (Response '['H.Location '::: RawText] 'Empty)
-         :<|> (IO (Response '[] ('Body '[Ct.TextPlain] Text))
-               :<|> IO NotHere)))
-  :<|> ((Tagged "user_id" Int
-         -> IO (Response '[] 'Empty)
-            :<|> (IO (Response '['H.Location '::: RawText] 'Empty)
-                  :<|> (IO (Response '[] ('Body '[Ct.TextPlain] Text))
-                        :<|> IO NotHere)))
-        :<|> (([Text]
-               -> IO (Response '[] 'Empty)
-                  :<|> (IO (Response '['H.Location '::: RawText] 'Empty)
-                        :<|> (IO (Response '[] ('Body '[Ct.TextPlain] Text))
-                              :<|> IO NotHere)))
-              :<|> IO NotHere))
-```
-
-Ugly! But regular! Taking a closer look we can note what's going on here.
-
-First, we note that `Impl Api_All IO :: *`. In other words, it's an actual
-Haskell *type*: something we can produce values of.
-
-Second, note that there's a big repeated chunk in the middle. This comes from
-the fact that we hit the same Endpoint definition three times. Let's refactor by
-finding the kind of `Impl Endpoint_1 IO`
-
-```haskell
-type Impl_Endpoint =
-       IO (Response '[] 'Empty)
-  :<|> IO (Response '['H.Location '::: RawText] 'Empty)
-  :<|> IO (Response '[] ('Body '[Ct.TextPlain] Text))
-  :<|> IO NotHere
-```
-
-Here we see that we have one `IO (Response ...)` for each method at our
-endpoint. We also have to provide the final `NotHere` server implementation
-which is given to us by `noOp :: Monad m => m NotHere` and simply indicates an
-automatic `404 Not Found` error.
-
-With this defined, we can give a fast type to `Impl Api_All IO`
-
-```haskell
-type Impl_All =
-       Impl_Endpoint
-  :<|> Tagged "user_id" Int -> Impl_Endpoint
-  :<|> [Text] -> Impl_Endpoint
-  :<|> IO NotHere
-```
-
-Which lets us more easily see the pattern. Again, we see distinct server choices
-separated by `:<|>` and `IO NotHere` to indicate the final, failing server at
-the bottom of the stack. We must also describe the endpoint implementations in
-various contexts: one for each in the API specification!
-
-In particular, we must implement `Impl_Endpoint` in a null context, in the
-context where we have an `Int` which was read in as the `"user_id"`, and finally
-in a context where we have a list of `Text` fragments corresponding to all of
-the remaining path segments captured by our wildcard.
-
-With this, we can construct a `Server IO` using the `handle` function
-
-```haskell
-server :: Server IO
-server = handle (Proxy :: Proxy Api_All) (myImplementation :: Impl_All)
-```
-
-and transform this `Server` into a normal Wai `Application` using
-`makeApplication`
-
-```haskell
-import qualified Network.Wai as Wai
-
-application :: Wai.Application
-application = makeApplication defaultConfig server
-```
-
-# Prior Art
-
-Serv is heavily inspired by the design of
-[`servant`](https://hackage.haskell.org/package/servant) which pioneered the
-API-description-as-type implementation style. Serv makes several different
-tradeoffs, however, as compared to `servant`
-
-- Serv's API language is *kind-restricted* enabling us to be more sure that API
-  descriptions make sense and enabling us to write closed type functions over
-  API descriptions with greater confidence that the function will not become
-  stuck. On the other hand, `servant` has all API descriptions at kind `*` and
-  therefore is more easily extensible.
-
-- Serv's API language is also more regular than `servant`'s. Again this is
-  helpful for writing type functions to analyze API descriptions since they
-  can pattern match on each path, api, and method component in the description.
-
-- Serv's API language includes an explicit notion of an `Endpoint` whereas
-  `servant`'s is more implicit (though it could be extended to include this
-  idea). Explicit `Endpoint`s enable proper OPTIONS and CORS handling in a way
-  that's transparent to you, the library user.
-
-- Serv's `Server` type is more flexible and less tied to Wai's `Application`
-  type or `IO`. Ultimately, as is the same with `servant`, one must interpret a
-  `Server` in `IO`, but it can be difficult to handle local effects of interest
-  using `servant` due to the explicit need to `enter` different effect contexts.
-  On the other hand, Serv lets you use whatever effects you like and convert
-  them all at once at the very end just before transforming `Server IO` into an
-  `Application`.
+That’s basically all you need to know to start describing `Api`s! There are
+more types available for this purpose, but these are the basics. Feel free to
+examine the documentation for `Serv.Api` to learn more.
