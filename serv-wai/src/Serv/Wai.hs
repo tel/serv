@@ -115,7 +115,7 @@ type family AllImpl m apis where
   AllImpl m '[] = '[]
   AllImpl m (api ': apis) = Impl m api ': AllImpl m apis
 
-type family AllHandlers m hs where
+type family AllHandlers m (hs :: [(Verb, Handler *)]) where
   AllHandlers m '[] = '[]
   AllHandlers m ( '(v, h) ': hs) =
     '(v, ImplHandler m h) ': AllHandlers m hs
@@ -142,7 +142,7 @@ type family Constrain a :: Constraint where
   Constrain (Header n a :> api) = (Constrain api, HeaderDecode n a)
   Constrain (Wildcard :> api) = Constrain api
 
-type family ConstrainEndpoint (hs :: [(Verb, Handler*)]) :: Constraint where
+type family ConstrainEndpoint (hs :: [(Verb, Handler *)]) :: Constraint where
   ConstrainEndpoint '[] = ()
   ConstrainEndpoint ( '(v, h) ': hs) =
     (ConstrainHandler h, ConstrainEndpoint hs)
@@ -233,7 +233,7 @@ handles
   => Set Verb -> Sing hs -> FieldRec (AllHandlers m hs) -> Server m
 handles verbs SNil RNil = methodNotAllowed verbs
 handles verbs (SCons (STuple2 sVerb sHandler) sRest) (ElField _verb handler :& implRest) =
-  handle sHandler handler
+  handle sVerb sHandler handler
   `orElse`
   handles verbs sRest implRest
 handles _ _ _ = bugInGHC
@@ -263,7 +263,7 @@ handle sVerb sH impl = Server $
         Left errors ->
           runServer (badRequest (Just (unlines ("invalid headers:" : errors))))
         Right rec ->
-          runServer (handle sH' (impl rec))
+          runServer (handle sVerb sH' (impl rec))
 
     SCaptureQuery sQ sH' -> do
       tryQ <- extractQueries sQ
@@ -271,12 +271,12 @@ handle sVerb sH impl = Server $
         Left errors ->
           runServer (badRequest (Just (unlines ("invalid query:" : errors))))
         Right rec ->
-          runServer (handle sH' (impl rec))
+          runServer (handle sVerb sH' (impl rec))
 
     -- TODO: These...
 
     SCaptureBody _sCTypes _sTy _sH' ->
-      undefined -- runServer (handle sH' (impl _))
+      undefined -- runServer (handle sVerb sH' (impl _))
 
 
 extractHeaders

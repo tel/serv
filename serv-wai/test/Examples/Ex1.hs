@@ -19,16 +19,15 @@ type JSONBody = HasBody '[JSON] [Int]
 
 type TheApi
   = Endpoint ()
-    '[
-      Method GET
+    '[ GET ::: Outputs
        '[ Ok :::
           Respond '[ CacheControl ::: Raw Text ] RawBody
         ]
-     , Method PUT
+     , PUT ::: Outputs
        '[ Ok :::
           Respond '[ CacheControl ::: Raw Text ] JSONBody
         ]
-     , Method DELETE
+     , DELETE ::: Outputs
        '[ InternalServerError :::
           Respond '[] RawBody
         ]
