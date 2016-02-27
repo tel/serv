@@ -273,7 +273,7 @@ handle sVerb sH impl = Server $
         Right rec ->
           runServer (handle sVerb sH' (impl rec))
 
-    SCaptureBody sCTypes sTy sH' -> do
+    SCaptureBody sCTypes _sTy sH' -> do
       eitval <- getBody sCTypes
       case eitval of
         Left err ->
