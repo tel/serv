@@ -4,6 +4,7 @@
 
 module Examples.Ex1 where
 
+import           Data.Aeson
 import           Data.String
 import           Data.Text        (Text)
 import           Serv.Api.Prelude
@@ -15,7 +16,7 @@ import           Test.Tasty
 import qualified Test.Tasty.HUnit as Hu
 
 type RawBody = HasBody '[TextPlain] Text
-type JSONBody = HasBody '[JSON] [Int]
+type JSONBody = HasBody '[JSON] Value
 
 type TheApi
   = Endpoint ()
@@ -23,10 +24,10 @@ type TheApi
        '[ Ok :::
           Respond '[ CacheControl ::: Raw Text ] RawBody
         ]
-     , PUT ::: Outputs
-       '[ Ok :::
-          Respond '[ CacheControl ::: Raw Text ] JSONBody
-        ]
+     , PUT ::: CaptureBody '[JSON] Value (Outputs
+         '[ Ok :::
+            Respond '[ CacheControl ::: Raw Text ] JSONBody
+          ])
      , DELETE ::: Outputs
        '[ InternalServerError :::
           Respond '[] RawBody
@@ -46,10 +47,10 @@ impl = get <+> put <+> delete <+> RNil where
          & withBody "Hello")
   put =
     SPUT =:
-      (return . respond
+      (\body -> return . respond
          $ emptyResponse SOk
          & withHeader SCacheControl "foo"
-         & withBody [1, 2, 3])
+         & withBody body)
   delete =
     SDELETE =:
       (return . respond
@@ -79,7 +80,10 @@ test1 = testGroup "Simple responses"
       T.assertStatus 404 resp
 
   , Hu.testCase "Constant PUT response (JSON)" $ runTest $ do
-      let req = Wai.defaultRequest { Wai.requestMethod = "PUT" }
+      let req = Wai.defaultRequest
+                  { Wai.requestMethod = "PUT"
+                  , Wai.requestBody = return "[1, 2, 3]"
+                  }
       resp <- T.request req
       T.assertStatus 200 resp
       T.assertContentType "application/json" resp

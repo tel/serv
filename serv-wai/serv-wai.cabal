@@ -57,6 +57,21 @@ library
 
   default-language:    Haskell2010
 
+executable example1
+  main-is:             Ex1.hs
+  hs-source-dirs:      exe
+  build-depends:       base
+                     , serv
+                     , serv-wai
+
+                     , aeson
+                     , text
+                     , wai
+                     , warp
+
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  default-language:    Haskell2010
+
 test-suite serv-wai-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
@@ -71,6 +86,7 @@ test-suite serv-wai-test
 
                      , HUnit
                      , QuickCheck
+                     , aeson
                      , tasty
                      , tasty-ant-xml
                      , tasty-hunit

@@ -225,3 +225,14 @@ instance Aeson.ToJSON a => MimeEncode JSON a where
 
 instance Aeson.FromJSON a => MimeDecode JSON a where
   mimeDecode _ bs = Aeson.eitherDecodeStrict bs
+
+-- | Instances which handle potentially missing JSON values
+instance {-# OVERLAPPING #-} Aeson.ToJSON a => MimeEncode JSON (Maybe a) where
+  mimeEncode _ Nothing = S.empty
+  mimeEncode _ (Just v) = Sl.toStrict (Aeson.encode v)
+
+-- | Instances which handle potentially missing JSON values
+instance {-# OVERLAPPING #-} Aeson.FromJSON a => MimeDecode JSON (Maybe a) where
+  mimeDecode _ bs
+    | S.null bs = Right Nothing
+    | otherwise = fmap Just (Aeson.eitherDecodeStrict bs)

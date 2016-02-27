@@ -233,29 +233,32 @@ handles
   => Set Verb -> Sing hs -> FieldRec (AllHandlers m hs) -> Server m
 handles verbs SNil RNil = methodNotAllowed verbs
 handles verbs (SCons (STuple2 sVerb sHandler) sRest) (ElField _verb handler :& implRest) =
-  handle sVerb sHandler handler
+  handleVerb sVerb sHandler handler
   `orElse`
   handles verbs sRest implRest
 handles _ _ _ = bugInGHC
 
-handle :: forall h m (v :: Verb) . (ConstrainHandler h, Monad m) => Sing v -> Sing h -> ImplHandler m h -> Server m
-handle sVerb sH impl = Server $
+handleVerb :: forall h m (v :: Verb) . (ConstrainHandler h, Monad m) => Sing v -> Sing h -> ImplHandler m h -> Server m
+handleVerb sVerb sH impl = Server $ do
+  mayVerb <- getVerb
+  case mayVerb of
+    Nothing -> runServer notFound
+    Just verbRequested
+      | verbRequested == HEAD -> do
+          runServer (handleHandler False sH impl)
+      | verbRequested == fromSing sVerb -> do
+          runServer (handleHandler True sH impl)
+      | otherwise ->
+          -- not methodNotAllowedS because we can't
+          -- make that judgement locally.
+          runServer notFound
+
+handleHandler :: (ConstrainHandler h, Monad m) => Bool -> Sing h -> ImplHandler m h -> Server m
+handleHandler presentBody sH impl = Server $
   case sH of
     SOutputs sAlts -> do
-      mayVerb <- getVerb
-      let verbProvided = fromSing sVerb
-      case mayVerb of
-        Nothing -> runServer notFound
-        Just verbRequested
-          | verbRequested == HEAD -> do
-              someResponse <- lift impl
-              handleResponse False sAlts someResponse
-          | verbRequested == verbProvided -> do
-              someResponse <- lift impl
-              handleResponse True sAlts someResponse
-          | otherwise ->
-              runServer notFound -- not methodNotAllowedS because we can't
-                                 -- make that judgement locally.
+      someResponse <- lift impl
+      handleResponse presentBody sAlts someResponse
 
     SCaptureHeaders sHdrs sH' -> do
       tryHdrs <- extractHeaders sHdrs
@@ -263,7 +266,7 @@ handle sVerb sH impl = Server $
         Left errors ->
           runServer (badRequest (Just (unlines ("invalid headers:" : errors))))
         Right rec ->
-          runServer (handle sVerb sH' (impl rec))
+          runServer (handleHandler presentBody sH' (impl rec))
 
     SCaptureQuery sQ sH' -> do
       tryQ <- extractQueries sQ
@@ -271,7 +274,7 @@ handle sVerb sH impl = Server $
         Left errors ->
           runServer (badRequest (Just (unlines ("invalid query:" : errors))))
         Right rec ->
-          runServer (handle sVerb sH' (impl rec))
+          runServer (handleHandler presentBody sH' (impl rec))
 
     SCaptureBody sCTypes _sTy sH' -> do
       eitval <- getBody sCTypes
@@ -279,7 +282,7 @@ handle sVerb sH impl = Server $
         Left err ->
           runServer (badRequest (Just ("bad body encoding: " ++ err)))
         Right val ->
-          runServer (handle sVerb sH' (impl val))
+          runServer (handleHandler presentBody sH' (impl val))
 
 
 extractHeaders
