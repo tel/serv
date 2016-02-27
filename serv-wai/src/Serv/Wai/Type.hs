@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE FlexibleInstances                  #-}
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE ExplicitForAll             #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures             #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
@@ -63,31 +63,35 @@ module Serv.Wai.Type (
 
 import           Control.Monad.Morph
 import           Control.Monad.State
-import qualified Data.ByteString            as S
-import qualified Data.ByteString.Lazy       as Sl
-import qualified Data.CaseInsensitive       as CI
+import qualified Data.ByteString               as S
+import qualified Data.ByteString.Lazy          as Sl
+import qualified Data.CaseInsensitive          as CI
 import           Data.IORef
-import           Data.Map                   (Map)
-import qualified Data.Map                   as Map
-import           Data.Maybe                 (catMaybes)
-import           Data.Set                   (Set)
+import           Data.Map                      (Map)
+import qualified Data.Map                      as Map
+import           Data.Maybe                    (catMaybes)
+import           Data.Set                      (Set)
 import           Data.Singletons
 import           Data.Singletons.TypeLits
 import           Data.String
-import           Data.Text                  (Text)
-import qualified Data.Text.Encoding         as Text
-import           Network.HTTP.Kinder.Header (HeaderDecode, HeaderName,
-                                             Sing (SAllow), SomeHeaderName,
-                                             headerDecodeBS, headerEncodePair,
-                                             headerName, parseHeaderName)
-import           Network.HTTP.Kinder.Query  (QueryDecode (..),
-                                             QueryKeyState (..))
-import qualified Network.HTTP.Kinder.Status as St
-import           Network.HTTP.Kinder.Verb   (Verb, parseVerb)
-import           Network.HTTP.Types.URI     (queryToQueryText)
+import           Data.Text                     (Text)
+import qualified Data.Text.Encoding            as Text
+import           Network.HTTP.Kinder.Header    (HeaderDecode, HeaderName,
+                                                Sing (SContentType, SAllow),
+                                                SomeHeaderName, headerDecodeBS,
+                                                headerEncodePair, headerName,
+                                                parseHeaderName)
+import           Network.HTTP.Kinder.MediaType (AllMimeDecode,
+                                                NegotiatedDecodeResult (..),
+                                                negotiatedMimeDecode)
+import           Network.HTTP.Kinder.Query     (QueryDecode (..),
+                                                QueryKeyState (..))
+import qualified Network.HTTP.Kinder.Status    as St
+import           Network.HTTP.Kinder.Verb      (Verb, parseVerb)
+import           Network.HTTP.Types.URI        (queryToQueryText)
 import           Network.Wai
-import           Serv.Wai.Error             (RoutingError)
-import qualified Serv.Wai.Error             as Error
+import           Serv.Wai.Error                (RoutingError)
+import qualified Serv.Wai.Error                as Error
 
 -- Server
 -- ----------------------------------------------------------------------------
@@ -237,6 +241,12 @@ class Contextual m where
   -- | Pulls the value of a query parameter, attempting to parse it
   getQuery :: QueryDecode s a => Sing s -> m (Either String a)
 
+  -- | Decodes the body according to the provided set of allowed content
+  -- types
+  getBody
+    :: forall a (ts :: [*])
+    . AllMimeDecode a ts => Sing ts -> m (Either String a)
+
 -- | (internal) gets the raw header data
 getHeaderRaw
   :: forall m (n :: HeaderName)
@@ -320,6 +330,20 @@ instance Monad m => Contextual (StateT Context m) where
     declareQuery s
     qks <- getQueryRaw s
     return (queryDecode s qks)
+
+  getBody ts = do
+    eitCt <- getHeader SContentType
+    body <- gets ctxBody
+    let mayCt = case eitCt of
+               Left _err -> Nothing
+               Right mt -> Just mt
+    return $ case negotiatedMimeDecode ts of
+      Nothing -> Left "no acceptable content types"
+      Just dec ->
+        case dec mayCt body of
+          NegotiatedDecode a -> Right a
+          NegotiatedDecodeError err -> Left ("body decode error: " ++ err)
+          DecodeNegotiationFailure mt -> Left ("could not negotiate: " ++ show mt)
 
 -- Context
 -- ----------------------------------------------------------------------------

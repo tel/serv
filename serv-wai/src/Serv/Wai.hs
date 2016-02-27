@@ -68,8 +68,8 @@ module Serv.Wai (
 ) where
 
 import           Control.Monad.Trans
+import qualified Data.ByteString               as S
 import qualified Data.ByteString.Lazy          as Sl
-import qualified Data.ByteString          as S
 import           Data.CaseInsensitive          (CI)
 import           Data.Maybe                    (catMaybes)
 import           Data.Set                      (Set)
@@ -84,7 +84,7 @@ import           Network.HTTP.Kinder.Header    (AllHeaderDecodes,
                                                 AllHeaderEncodes,
                                                 HeaderDecode (..), HeaderName, Sing (SAccept, SAllow, SContentType),
                                                 headerEncodePair)
-import           Network.HTTP.Kinder.MediaType (AllMimeEncode,
+import           Network.HTTP.Kinder.MediaType (AllMimeDecode, AllMimeEncode,
                                                 negotiatedMimeEncode)
 import           Network.HTTP.Kinder.Query     (AllQueryDecodes)
 import           Network.HTTP.Kinder.Status    (Status)
@@ -151,7 +151,7 @@ type family ConstrainHandler h :: Constraint where
   ConstrainHandler (Outputs os) =
     ConstrainOutputs os
   ConstrainHandler (CaptureBody ctypes a h) =
-    ConstrainHandler h -- TODO
+    (AllMimeDecode a ctypes, ConstrainHandler h)
   ConstrainHandler (CaptureHeaders hs h) =
     (AllHeaderDecodes hs, ConstrainHandler h)
   ConstrainHandler (CaptureQuery qs h) =
@@ -273,10 +273,13 @@ handle sVerb sH impl = Server $
         Right rec ->
           runServer (handle sVerb sH' (impl rec))
 
-    -- TODO: These...
-
-    SCaptureBody _sCTypes _sTy _sH' ->
-      undefined -- runServer (handle sVerb sH' (impl _))
+    SCaptureBody sCTypes sTy sH' -> do
+      eitval <- getBody sCTypes
+      case eitval of
+        Left err ->
+          runServer (badRequest (Just ("bad body encoding: " ++ err)))
+        Right val ->
+          runServer (handle sVerb sH' (impl val))
 
 
 extractHeaders

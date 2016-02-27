@@ -42,7 +42,7 @@ module Network.HTTP.Kinder.MediaType (
   , decodersOf
 
   -- * Re-exports from "Network.HTTP.Media"
-  , MediaType ()
+  , MediaType (), (//), (/:)
   , mainType, subType, (/?), (/.)
   , Quality ()
 
