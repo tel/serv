@@ -82,12 +82,12 @@ test1 = testGroup "Simple responses"
   , Hu.testCase "Constant PUT response (JSON)" $ runTest $ do
       let req = Wai.defaultRequest
                   { Wai.requestMethod = "PUT"
-                  , Wai.requestBody = return "[1, 2, 3]"
+                  , Wai.requestHeaders = [("Content-Type", "application/json")]
                   }
-      resp <- T.request req
+      resp <- T.srequest (T.SRequest req "[1,2,3]")
       T.assertStatus 200 resp
-      T.assertContentType "application/json" resp
       T.assertBody "[1,2,3]" resp
+      T.assertContentType "application/json" resp
       T.assertHeader "Cache-Control" "foo" resp
 
   , Hu.testCase "Proper OPTIONS response" $ runTest $ do
