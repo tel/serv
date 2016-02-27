@@ -334,16 +334,17 @@ instance Monad m => Contextual (StateT Context m) where
   getBody ts = do
     eitCt <- getHeader SContentType
     body <- gets ctxBody
-    let mayCt = case eitCt of
-               Left _err -> Nothing
-               Right mt -> Just mt
     return $ case negotiatedMimeDecode ts of
       Nothing -> Left "no acceptable content types"
       Just dec ->
-        case dec mayCt body of
+        case dec (hush eitCt) body of
           NegotiatedDecode a -> Right a
           NegotiatedDecodeError err -> Left ("body decode error: " ++ err)
           DecodeNegotiationFailure mt -> Left ("could not negotiate: " ++ show mt)
+
+hush :: Either e a -> Maybe a
+hush (Left _) = Nothing
+hush (Right a) = Just a
 
 -- Context
 -- ----------------------------------------------------------------------------
