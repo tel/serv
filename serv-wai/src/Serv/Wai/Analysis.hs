@@ -13,31 +13,35 @@
 -- (/A little rough right now, sorry/)
 module Serv.Wai.Analysis where
 
-import           Data.Monoid
-import           Data.Set                      (Set)
-import qualified Data.Set                      as Set
-import           Data.Singletons
-import           Data.Singletons.Prelude.List
-import           Data.Singletons.Prelude.Tuple
-import           Network.HTTP.Kinder.Header    (HeaderName, SomeHeaderName (..))
-import           Network.HTTP.Kinder.Verb      (Verb)
-import           Serv.Api
+import Data.Monoid
+import Data.Set (Set)
+import qualified Data.Set as Set
+import Data.Singletons
+import Data.Singletons.Prelude.List
+import Data.Singletons.Prelude.Tuple
+import Network.HTTP.Kinder.Header (HeaderName, SomeHeaderName (..))
+import Network.HTTP.Kinder.Verb (Verb)
+import Serv.Api
 
 data EndpointAnalysis
   = EndpointAnalysis
-    { verbsHandled :: Set Verb
+    { verbsHandled    :: Set Verb
     , headersExpected :: Set SomeHeaderName
-    , headersEmitted :: Set SomeHeaderName
+    , headersEmitted  :: Set SomeHeaderName
     }
 
-instance Monoid EndpointAnalysis where
-  mempty = EndpointAnalysis mempty mempty mempty
-  mappend ea eb =
+instance Semigroup EndpointAnalysis where
+  ea <> eb =
     EndpointAnalysis
     { verbsHandled = verbsHandled ea <> verbsHandled eb
     , headersExpected = headersExpected ea <> headersExpected eb
     , headersEmitted = headersEmitted ea <> headersEmitted eb
     }
+
+instance Monoid EndpointAnalysis where
+  mempty  = EndpointAnalysis mempty mempty mempty
+  mappend x y = x <> y
+
 
 inspectEndpoint :: forall (hs :: [(Verb, Handler *)]) . Sing hs -> EndpointAnalysis
 inspectEndpoint s =

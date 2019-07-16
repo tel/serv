@@ -7,6 +7,10 @@
 {-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeInType #-}
+
+-- TODO: most of the code can be defined by template haskell with singleton
+-- I think it was avoided because of compilation time
 
 -- | Defines types and kinds for working with type and value level HTTP
 -- verbs.
@@ -36,6 +40,7 @@ import qualified Data.ByteString      as S
 import qualified Data.CaseInsensitive as CI
 import           Data.Singletons.Prelude
 import           Data.String
+import Data.Kind
 
 -- | A data type representing HTTP verbs. Much more importantly, with
 -- @DataKinds@ enabled this becomes a kind describing types, one for each
@@ -55,7 +60,7 @@ data Verb
   | PATCH
   | POST
   | PUT
-    deriving ( Eq, Ord, Show, Read )
+    deriving ( Eq, Ord, Show, Read)
 
 type DELETE = 'DELETE
 type GET = 'GET
@@ -74,7 +79,7 @@ data instance Sing (v :: Verb)
   | v ~ POST => SPOST
   | v ~ PUT => SPUT
 
-instance SingI 'DELETE where sing = SDELETE
+instance SingI 'DELETE where sing = SDELETE -- TODO: could have used singleton template haskell
 instance SingI 'GET where sing = SGET
 instance SingI 'HEAD where sing = SHEAD
 instance SingI 'OPTIONS where sing = SOPTIONS
@@ -82,8 +87,15 @@ instance SingI 'PATCH where sing = SPATCH
 instance SingI 'POST where sing = SPOST
 instance SingI 'PUT where sing = SPUT
 
-instance SingKind ('KProxy :: KProxy Verb) where
-  type DemoteRep ('KProxy :: KProxy Verb) = Verb
+{-
+ class SingKind k where
+   type Demote k = (r :: Type) r -> k
+   toSing :: Demote k -> SomeSing k
+   fromSIng :: Sing (a :: k) -> Demote k
+
+-}
+instance SingKind Verb where
+  type Demote Verb = Verb
   fromSing s =
     case s of
       SDELETE -> DELETE

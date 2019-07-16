@@ -85,7 +85,7 @@ class QueryEncode (s :: Symbol) a where
 -- | For a given concrete type @a@, a list of pairs @ts@ satisfies
 -- @'AllQueryEncode' a ts@ if each @(n, a)@ in @ts@ has @'QueryEncode'
 -- n a@.
-type family AllQueryEncodes hs :: Constraint where
+type family AllQueryEncodes hs :: Constraint where -- TODO: make hs kind more specific
   AllQueryEncodes '[] = ()
   AllQueryEncodes ( '(s, a) ': hs ) = (QueryEncode s a, AllQueryEncodes hs)
 

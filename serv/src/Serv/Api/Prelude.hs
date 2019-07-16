@@ -13,7 +13,7 @@ module Serv.Api.Prelude (
 
 ) where
 
-import           Data.Singletons
-import           Data.Singletons.TypeRepStar ()
-import           Network.HTTP.Kinder
-import           Serv.Api
+import Data.Singletons
+import Data.Singletons.TypeRepTYPE () -- TODO: do we need this
+import Network.HTTP.Kinder
+import Serv.Api

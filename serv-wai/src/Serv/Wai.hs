@@ -67,39 +67,38 @@ module Serv.Wai (
 
 ) where
 
-import           Control.Monad.Trans
-import qualified Data.ByteString               as S
-import qualified Data.ByteString.Lazy          as Sl
-import           Data.CaseInsensitive          (CI)
-import           Data.Maybe                    (catMaybes)
-import           Data.Set                      (Set)
-import qualified Data.Set                      as Set
-import           Data.Singletons
-import           Data.Singletons.Prelude.List
-import           Data.Singletons.Prelude.Tuple
-import           Data.Singletons.TypeLits
-import           Data.Text                     (Text)
-import           GHC.Exts
-import           Network.HTTP.Kinder.Header    (AllHeaderDecodes,
-                                                AllHeaderEncodes,
-                                                HeaderDecode (..), HeaderName, Sing (SAccept, SAllow, SContentType),
-                                                headerEncodePair)
-import           Network.HTTP.Kinder.MediaType (AllMimeDecode, AllMimeEncode,
-                                                negotiatedMimeEncode)
-import           Network.HTTP.Kinder.Query     (AllQueryDecodes)
-import           Network.HTTP.Kinder.Status    (Status)
-import qualified Network.HTTP.Kinder.Status    as St
-import           Network.HTTP.Kinder.URI       (URIDecode (..))
-import           Network.HTTP.Kinder.Verb      (Verb (..))
-import           Network.Wai
-import           Serv.Api
-import           Serv.Wai.Analysis
-import           Serv.Wai.Corec
-import           Serv.Wai.Rec
-import           Serv.Wai.Response
-import           Serv.Wai.Type
+import Control.Monad.Trans
+import qualified Data.ByteString as S
+import qualified Data.ByteString.Lazy as Sl
+import Data.CaseInsensitive (CI)
+import Data.Maybe (catMaybes)
+import Data.Set (Set)
+import qualified Data.Set as Set
+import Data.Singletons
+import Data.Singletons.Prelude.List
+import Data.Singletons.Prelude.Tuple
+import Data.Singletons.TypeLits
+import Data.Text (Text)
+import GHC.Exts
+import Network.HTTP.Kinder.Header (AllHeaderDecodes, AllHeaderEncodes, HeaderDecode (..),
+                                   HeaderName, Sing (SAccept, SAllow, SContentType),
+                                   headerEncodePair)
+import Network.HTTP.Kinder.MediaType (AllMimeDecode, AllMimeEncode, negotiatedMimeEncode)
+import Network.HTTP.Kinder.Query (AllQueryDecodes)
+import Network.HTTP.Kinder.Status (Status)
+import qualified Network.HTTP.Kinder.Status as St
+import Network.HTTP.Kinder.URI (URIDecode (..))
+import Network.HTTP.Kinder.Verb (Verb (..))
+import Network.Wai
+import Serv.Api
+import Serv.Wai.Analysis
+import Serv.Wai.Corec
+import Serv.Wai.Error as E
+import Serv.Wai.Rec
+import Serv.Wai.Response
+import Serv.Wai.Type
 
-type family Impl (m :: * -> *) api where
+type family Impl (m :: * -> *) api where -- TODO: specify api kind
   Impl m Abstract = m (Context -> Application)
 
   Impl m (OneOf apis) = HList (AllImpl m apis)
@@ -200,12 +199,12 @@ server (path :%> api) impl =
         Nothing -> notFound
         Just seg ->
           case uriDecode seg of
-            Left err -> badRequest (Just err)
+            Left err  -> badRequest (Just err)
             Right val -> server api (impl val)
     SHeader hdr _ty -> do
       tryVal <- getHeader hdr
       runServer $ case tryVal of
-        Left err -> badRequest (Just err)
+        Left err  -> badRequest (Just err)
         Right val -> server api (impl val)
 server (SEndpoint _ann handlers) impls = Server $ do
   let verbs = augmentVerbs (inspectVerbs handlers)
@@ -236,7 +235,10 @@ handles verbs (SCons (STuple2 sVerb sHandler) sRest) (ElField _verb handler :& i
   handleVerb sVerb sHandler handler
   `orElse`
   handles verbs sRest implRest
-handles _ _ _ = bugInGHC
+-- handles _ _ _ = error "GHC bug"
+
+-- bugInGHC :: Server m
+-- bugInGHC = notFound -- TODO: implement a better bugInGHC funtion
 
 handleVerb :: forall h m (v :: Verb) . (ConstrainHandler h, Monad m) => Sing v -> Sing h -> ImplHandler m h -> Server m
 handleVerb sVerb sH impl = Server $ do
@@ -294,9 +296,9 @@ extractHeaders (SCons (STuple2 hdr (_ty :: Sing a)) rest) = do
   tryRec <- extractHeaders rest
   tryHeader <- getHeader hdr
   return $ case (tryRec, tryHeader :: Either String a) of
-    (Left errs, Left err) -> Left (err : errs)
-    (Left errs, Right _) -> Left errs
-    (Right _, Left err) -> Left [err]
+    (Left errs, Left err)  -> Left (err : errs)
+    (Left errs, Right _)   -> Left errs
+    (Right _, Left err)    -> Left [err]
     (Right rec, Right val) -> Right (ElField hdr val :& rec)
 
 extractQueries
@@ -308,9 +310,9 @@ extractQueries (SCons (STuple2 qsym (_ty :: Sing a)) rest) = do
   tryRec <- extractQueries rest
   tryQuery <- getQuery qsym
   return $ case (tryRec, tryQuery :: Either String a) of
-    (Left errs, Left err) -> Left (err : errs)
-    (Left errs, Right _) -> Left errs
-    (Right _, Left err) -> Left [err]
+    (Left errs, Left err)  -> Left (err : errs)
+    (Left errs, Right _)   -> Left errs
+    (Right _, Left err)    -> Left [err]
     (Right rec, Right val) -> Right (ElField qsym val :& rec)
 
 handleResponse
@@ -361,9 +363,9 @@ handleResponse
                     ++ encodeHeaders headers
                   )
                   (Sl.fromStrict body)
-    _ -> bugInGHC
+    -- _ -> error "GHC bug"
 
-handleResponse _ _ _ = bugInGHC
+handleResponse _ _ _ = error "GHC bug"
 
 -- | Augment the Set of allowed verbs by adding OPTIONS and, as necessary,
 -- HEAD.

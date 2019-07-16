@@ -3,8 +3,9 @@
 {-# LANGUAGE GADTs                     #-}
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE TypeApplications          #-}
 {-# LANGUAGE TypeFamilies              #-}
-
+{-# LANGUAGE TypeInType                #-}
 -- | Defines the types and kinds for working with type and value level HTTP
 -- status codes.
 --
@@ -146,8 +147,8 @@ module Network.HTTP.Kinder.Status (
 
 ) where
 
-import           Data.Singletons
-import           Data.Singletons.TypeLits
+import Data.Singletons
+import Data.Singletons.TypeLits
 import qualified Network.HTTP.Types.Status as S
 
 -- | It's difficult to get ahold of values of 'Status' directly since they
@@ -164,66 +165,66 @@ data SomeStatus where
 httpStatus :: forall (sc :: Status) . Sing sc -> S.Status
 httpStatus c =
   case c of
-    SCustomStatus int -> S.mkStatus (fromInteger (withKnownNat int (natVal int))) ""
+    SCustomStatus sint              -> S.mkStatus (fromIntegral @_ @Int (withKnownNat sint (natVal sint))) ""
 
-    SContinue -> S.status100
-    SSwitchingProtocols -> S.status101
+    SContinue                      -> S.status100
+    SSwitchingProtocols            -> S.status101
 
-    SOk -> S.status200
-    SCreated -> S.status201
-    SAccepted -> S.status202
-    SNonAuthoritiveInformation -> S.status203
-    SNoContent -> S.status204
-    SResetContent -> S.status205
-    SPartialContent -> S.status206
-    SIMUsed -> S.mkStatus 226 "IM Used"
+    SOk                            -> S.status200
+    SCreated                       -> S.status201
+    SAccepted                      -> S.status202
+    SNonAuthoritiveInformation     -> S.status203
+    SNoContent                     -> S.status204
+    SResetContent                  -> S.status205
+    SPartialContent                -> S.status206
+    SIMUsed                        -> S.mkStatus 226 "IM Used"
 
-    SMultipleChoices -> S.status300
-    SMovedPermanently -> S.status301
-    SFound -> S.status302
-    SSeeOther -> S.status303
-    SNotModified -> S.status304
-    STemporaryRedirect -> S.status307
-    SPermanentRedirect -> S.status308
+    SMultipleChoices               -> S.status300
+    SMovedPermanently              -> S.status301
+    SFound                         -> S.status302
+    SSeeOther                      -> S.status303
+    SNotModified                   -> S.status304
+    STemporaryRedirect             -> S.status307
+    SPermanentRedirect             -> S.status308
 
-    SBadRequest -> S.status400
-    SUnauthorized -> S.status401
-    SPaymentRequired -> S.status402
-    SForbidden -> S.status403
-    SNotFound -> S.status404
-    SMethodNotAllowed -> S.status405
-    SNotAcceptable -> S.status406
-    SProxyAuthenticationRequired -> S.status407
-    SRequestTimeout -> S.status408
-    SConflict -> S.status409
-    SGone -> S.status410
-    SLengthRequired -> S.status411
-    SPreconditionFailed -> S.status412
-    SPayloadTooLarge -> S.status413
-    SRequestURITooLong -> S.status414
-    SUnsupportedMediaType -> S.status415
-    SRequestedRangeNotSatisfiable -> S.status416
-    SExpectationFailed -> S.status417
-    SMisdirectedRequest -> S.mkStatus 421 "Misdirected Request"
-    SUnprocessableEntity -> S.mkStatus 422 "Unprocessable Entity"
-    SLocked -> S.mkStatus 423 "Locked"
-    SFailedDependency -> S.mkStatus 424 "Failed Dependency"
-    SUpgradeRequired -> S.mkStatus 426 "Upgrade Required"
-    SPreconditionRequired -> S.status428
-    STooManyRequests -> S.status429
-    SRequestHeaderFieldsTooLarge -> S.status431
-    SUnavailableForLegalReasons -> S.mkStatus 451 "Unavailable for Legal Reasons"
+    SBadRequest                    -> S.status400
+    SUnauthorized                  -> S.status401
+    SPaymentRequired               -> S.status402
+    SForbidden                     -> S.status403
+    SNotFound                      -> S.status404
+    SMethodNotAllowed              -> S.status405
+    SNotAcceptable                 -> S.status406
+    SProxyAuthenticationRequired   -> S.status407
+    SRequestTimeout                -> S.status408
+    SConflict                      -> S.status409
+    SGone                          -> S.status410
+    SLengthRequired                -> S.status411
+    SPreconditionFailed            -> S.status412
+    SPayloadTooLarge               -> S.status413
+    SRequestURITooLong             -> S.status414
+    SUnsupportedMediaType          -> S.status415
+    SRequestedRangeNotSatisfiable  -> S.status416
+    SExpectationFailed             -> S.status417
+    SMisdirectedRequest            -> S.mkStatus 421 "Misdirected Request"
+    SUnprocessableEntity           -> S.mkStatus 422 "Unprocessable Entity"
+    SLocked                        -> S.mkStatus 423 "Locked"
+    SFailedDependency              -> S.mkStatus 424 "Failed Dependency"
+    SUpgradeRequired               -> S.mkStatus 426 "Upgrade Required"
+    SPreconditionRequired          -> S.status428
+    STooManyRequests               -> S.status429
+    SRequestHeaderFieldsTooLarge   -> S.status431
+    SUnavailableForLegalReasons    -> S.mkStatus 451 "Unavailable for Legal Reasons"
 
-    SInternalServerError -> S.status500
-    SNotImplemented -> S.status501
-    SBadGateway -> S.status502
-    SServiceUnavailable -> S.status503
-    SGatewayTimeout -> S.status504
-    SHTTPVersionNotSupported -> S.status505
-    SVariantAlsoNegotiates -> S.mkStatus 506 "Variant Also Negotiates"
-    SInsufficientStorage -> S.mkStatus 507 "Insufficient Storage"
-    SLoopDetected -> S.mkStatus 508 "Loop Detected"
-    SNotExtended -> S.mkStatus 510 "Not Extended"
+    SInternalServerError           -> S.status500
+    SNotImplemented                -> S.status501
+    SBadGateway                    -> S.status502
+    SServiceUnavailable            -> S.status503
+    SGatewayTimeout                -> S.status504
+    SHTTPVersionNotSupported       -> S.status505
+    SVariantAlsoNegotiates         -> S.mkStatus 506 "Variant Also Negotiates"
+    SInsufficientStorage           -> S.mkStatus 507 "Insufficient Storage"
+    SLoopDetected                  -> S.mkStatus 508 "Loop Detected"
+    SNotExtended                   -> S.mkStatus 510 "Not Extended"
     SNetworkAuthenticationRequired -> S.status511
 
 -- | Get the 'Int' status code for a given 'Status' 'Sing'.
@@ -296,7 +297,7 @@ parseStatus c =
     511 -> SomeStatus SNetworkAuthenticationRequired
 
     other ->
-      case toSing (fromIntegral other) :: SomeSing ('KProxy :: KProxy Nat) of
+      case toSing (fromIntegral other) :: SomeSing Nat of
         SomeSing code -> SomeStatus (SCustomStatus code)
 
 -- | A data type representing HTTP statuses (codes). Much more importantly,
