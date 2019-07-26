@@ -4,7 +4,8 @@
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TypeFamilies              #-}
-
+{-# LANGUAGE TypeInType                #-}
+{-# LANGUAGE TypeApplications          #-}
 -- | Defines the types and kinds for working with type and value level HTTP
 -- status codes.
 --
@@ -146,8 +147,8 @@ module Network.HTTP.Kinder.Status (
 
 ) where
 
-import           Data.Singletons
-import           Data.Singletons.TypeLits
+import Data.Singletons
+import Data.Singletons.TypeLits
 import qualified Network.HTTP.Types.Status as S
 
 -- | It's difficult to get ahold of values of 'Status' directly since they
@@ -164,7 +165,7 @@ data SomeStatus where
 httpStatus :: forall (sc :: Status) . Sing sc -> S.Status
 httpStatus c =
   case c of
-    SCustomStatus int -> S.mkStatus (fromInteger (withKnownNat int (natVal int))) ""
+    SCustomStatus int -> S.mkStatus (fromIntegral @_ @Int (withKnownNat int (natVal int))) ""
 
     SContinue -> S.status100
     SSwitchingProtocols -> S.status101
@@ -296,7 +297,7 @@ parseStatus c =
     511 -> SomeStatus SNetworkAuthenticationRequired
 
     other ->
-      case toSing (fromIntegral other) :: SomeSing ('KProxy :: KProxy Nat) of
+      case toSing (fromIntegral other) :: SomeSing Nat of
         SomeSing code -> SomeStatus (SCustomStatus code)
 
 -- | A data type representing HTTP statuses (codes). Much more importantly,

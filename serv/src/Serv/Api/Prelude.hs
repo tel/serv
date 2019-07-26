@@ -14,6 +14,6 @@ module Serv.Api.Prelude (
 ) where
 
 import           Data.Singletons
-import           Data.Singletons.TypeRepStar ()
+import           Data.Singletons.TypeRepTYPE ()
 import           Network.HTTP.Kinder
 import           Serv.Api

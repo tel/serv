@@ -3,7 +3,9 @@
 {-# LANGUAGE GADTs                     #-}
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE TypeApplications          #-}
 {-# LANGUAGE TypeFamilies              #-}
+{-# LANGUAGE TypeInType                #-}
 
 -- | Defines the types and kinds for working with type and value level headers.
 --
@@ -171,7 +173,6 @@ import           Data.Singletons
 import           Data.Singletons.TypeLits
 import           Data.String
 import           Data.Text                (Text)
-import qualified Data.Text                as T
 
 -- | It's difficult to get ahold of values of 'HeaderName' directly since
 -- they may contain 'Symbol' values which do not exist. Instead, we can get
@@ -346,7 +347,7 @@ parseHeaderName n =
     "X-Forwarded-Host" -> SomeHeaderName SXForwardedHost
     "X-Forwarded-Proto" -> SomeHeaderName SXForwardedProto
     other ->
-      case toSing (T.unpack (CI.original other)) :: SomeSing ('KProxy :: KProxy Symbol) of
+      case toSing @Symbol (CI.original other) of
         SomeSing s -> SomeHeaderName (SCustomHeader s)
 
 -- | A data type representing names describing headers in an HTTP request
