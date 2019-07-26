@@ -1,5 +1,5 @@
 name:                http-kinder
-version:             0.2.0.0
+version:             0.2.1.0
 synopsis:            Generic kinds and types for working with HTTP
 description:
   Types and kinds for describing HTTP requests and responsts.
@@ -41,7 +41,7 @@ library
                      , singletons
                      , text
                      , time
-
+  ghc-options:         -Wall -Werror -Wcompat -Wredundant-constraints -Wunused-imports
   default-language:    Haskell2010
 
 test-suite http-kinder-test
@@ -65,7 +65,7 @@ test-suite http-kinder-test
                      , wai
                      , wai-extra
 
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  ghc-options:         -Wall -Werror -Wcompat -Wredundant-constraints -Wunused-imports -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 
 source-repository head

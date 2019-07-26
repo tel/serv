@@ -11,4 +11,4 @@ import           Data.String
 -- would return exactly the text value of the header whereas one for 'Text'
 -- would only parse if the values were quoted.
 newtype Raw a = Raw { getRaw :: a }
-  deriving (Eq, Ord, Read, Show, Monoid, IsString)
+  deriving (Eq, Ord, Read, Show, Semigroup, Monoid, IsString)

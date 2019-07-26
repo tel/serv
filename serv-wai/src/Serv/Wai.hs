@@ -49,7 +49,7 @@ module Serv.Wai (
   --
   -- NOTE: Closed type families are rather finnicky as to when they
   -- actually evaluate, so the factoring of these type families into
-  -- smaller pieces is done by some trial an error.
+  -- smaller pieces is done by some trial and error.
 
   , Impl
   , Constrain
@@ -236,7 +236,6 @@ handles verbs (SCons (STuple2 sVerb sHandler) sRest) (ElField _verb handler :& i
   handleVerb sVerb sHandler handler
   `orElse`
   handles verbs sRest implRest
-handles _ _ _ = bugInGHC
 
 handleVerb :: forall h m (v :: Verb) . (ConstrainHandler h, Monad m) => Sing v -> Sing h -> ImplHandler m h -> Server m
 handleVerb sVerb sH impl = Server $ do
@@ -361,9 +360,8 @@ handleResponse
                     ++ encodeHeaders headers
                   )
                   (Sl.fromStrict body)
-    _ -> bugInGHC
 
-handleResponse _ _ _ = bugInGHC
+handleResponse _ _ _ = error "BUG IN GHC"
 
 -- | Augment the Set of allowed verbs by adding OPTIONS and, as necessary,
 -- HEAD.

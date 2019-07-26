@@ -1,8 +1,6 @@
 {-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE ExplicitForAll             #-}
 {-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures             #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
@@ -46,7 +44,7 @@ module Serv.Wai.Type (
 
   -- | As a 'Server' runs it generates a 'Context' descrbing the routing
   -- and decoding/encoding process so far. The 'Context' provides valuable
-  -- information aboue the 'Request' and also about how the implemtation of
+  -- information about the 'Request' and also about how the implemtation of
   -- the server has examined the 'Request' so far.
 
   , Context (..)
@@ -66,12 +64,10 @@ import           Control.Monad.State
 import qualified Data.ByteString               as S
 import qualified Data.ByteString.Lazy          as Sl
 import qualified Data.CaseInsensitive          as CI
-import           Data.IORef
 import           Data.Map                      (Map)
 import qualified Data.Map                      as Map
-import           Data.Maybe                    (catMaybes)
+import           Data.Maybe                    (catMaybes, fromMaybe)
 import           Data.Set                      (Set)
-import           Data.Singletons
 import           Data.Singletons.TypeLits
 import           Data.String
 import           Data.Text                     (Text)
@@ -180,7 +176,7 @@ defaultRoutingErrorResponse err =
     Error.NotFound ->
       responseLBS (St.httpStatus St.SNotFound) [] ""
     Error.BadRequest e -> do
-      let errString = fromString (maybe "" id e)
+      let errString = fromString (fromMaybe "" e)
       responseLBS (St.httpStatus St.SBadRequest) [] (fromString errString)
     Error.UnsupportedMediaType ->
       responseLBS (St.httpStatus St.SUnsupportedMediaType) [] ""
@@ -391,15 +387,12 @@ data Context =
 makeContext :: Request -> IO Context
 makeContext theRequest = do
   theBody <- strictRequestBody theRequest
-  -- We create a "frozen", strict version of the body and augment the request to
-  -- always return it directly.
-  ref <- newIORef (Sl.toStrict theBody)
   let headerSet =
         map (\(name, value) ->
               (parseHeaderName (ciBsToText name), value))
             (requestHeaders theRequest)
   let querySet = queryToQueryText (queryString theRequest)
-  return Context { ctxRequest = theRequest { requestBody = readIORef ref }
+  return Context { ctxRequest = theRequest
                  , ctxPathZipper = ([], pathInfo theRequest)
                  , ctxHeaders = Map.fromList headerSet
                  , ctxQuery = Map.fromList querySet

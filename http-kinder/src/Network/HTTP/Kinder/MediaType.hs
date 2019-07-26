@@ -54,7 +54,6 @@ import qualified Data.ByteString.Lazy         as Sl
 import           Data.Map                     (Map)
 import qualified Data.Map                     as Map
 import           Data.Proxy
-import           Data.Singletons
 import           Data.Singletons.Prelude.List (Sing (SCons, SNil))
 import           Data.Text                    (Text)
 import qualified Data.Text.Encoding           as Text

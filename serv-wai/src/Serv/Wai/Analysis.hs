@@ -13,7 +13,6 @@
 -- (/A little rough right now, sorry/)
 module Serv.Wai.Analysis where
 
-import           Data.Monoid
 import           Data.Set                      (Set)
 import qualified Data.Set                      as Set
 import           Data.Singletons
@@ -30,14 +29,16 @@ data EndpointAnalysis
     , headersEmitted :: Set SomeHeaderName
     }
 
-instance Monoid EndpointAnalysis where
-  mempty = EndpointAnalysis mempty mempty mempty
-  mappend ea eb =
+instance Semigroup EndpointAnalysis where
+  ea <> eb =
     EndpointAnalysis
     { verbsHandled = verbsHandled ea <> verbsHandled eb
     , headersExpected = headersExpected ea <> headersExpected eb
     , headersEmitted = headersEmitted ea <> headersEmitted eb
     }
+
+instance Monoid EndpointAnalysis where
+  mempty  = EndpointAnalysis mempty mempty mempty
 
 inspectEndpoint :: forall (hs :: [(Verb, Handler *)]) . Sing hs -> EndpointAnalysis
 inspectEndpoint s =
@@ -68,7 +69,7 @@ inspectHandler sVerb s =
       }
       <> inspectHandler sVerb sNext
 
-headerNames :: forall (hts :: [(HeaderName, k)]) . Sing hts -> Set SomeHeaderName
+headerNames :: forall k (hts :: [(HeaderName, k)]) . Sing hts -> Set SomeHeaderName
 headerNames s =
   case s of
     SNil -> Set.empty

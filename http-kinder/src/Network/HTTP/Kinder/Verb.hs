@@ -7,6 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeInType #-}
 
 -- | Defines types and kinds for working with type and value level HTTP
 -- verbs.
@@ -82,8 +83,8 @@ instance SingI 'PATCH where sing = SPATCH
 instance SingI 'POST where sing = SPOST
 instance SingI 'PUT where sing = SPUT
 
-instance SingKind ('KProxy :: KProxy Verb) where
-  type DemoteRep ('KProxy :: KProxy Verb) = Verb
+instance SingKind Verb where
+  type Demote Verb = Verb
   fromSing s =
     case s of
       SDELETE -> DELETE

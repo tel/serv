@@ -1,4 +1,4 @@
-resolver: lts-5.0
+resolver: lts-13.28
 packages:
 - serv
 - serv-wai
