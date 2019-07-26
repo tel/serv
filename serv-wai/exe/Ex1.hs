@@ -3,8 +3,10 @@
 {-# LANGUAGE TypeOperators     #-}
 
 import           Data.Aeson (Value (..))
-import           Data.Text                (Text)
+import           Data.Maybe (fromMaybe)
+import           Data.Text (Text)
 import           Network.Wai.Handler.Warp (run)
+
 import           Serv.Api.Prelude
 import           Serv.Wai.Prelude
 
@@ -31,7 +33,7 @@ apiSing :: Sing TheApi
 apiSing = sing
 
 impl :: Impl IO TheApi
-impl = get <+> put <+> delete <+> RNil where
+impl = get <+> put <+> delete where
   get =
     SGET =:
       (return . respond
@@ -43,7 +45,7 @@ impl = get <+> put <+> delete <+> RNil where
       (\body -> return . respond
          $ emptyResponse SOk
          & withHeader SCacheControl "foo"
-         & withBody (maybe (String "no body passed") id body))
+         & withBody (fromMaybe (String "no body passed") body))
   delete =
     SDELETE =:
       (return . respond
