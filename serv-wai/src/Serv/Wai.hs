@@ -196,12 +196,14 @@ server (path :%> api) impl =
         else notFound
     SSeg _name _ty -> do
       trySeg <- popSegment
-      runServer $ case trySeg of
-        Nothing -> notFound
+      case trySeg of
+        Nothing -> runServer notFound
         Just seg ->
           case uriDecode seg of
-            Left err -> badRequest (Just err)
-            Right val -> server api (impl val)
+            Left err -> do
+              setError . mkBadRequest . Just $ err
+              runServer notFound
+            Right val -> runServer $ server api (impl val)
     SHeader hdr _ty -> do
       tryVal <- getHeader hdr
       runServer $ case tryVal of

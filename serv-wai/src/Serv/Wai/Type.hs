@@ -38,6 +38,7 @@ module Serv.Wai.Type (
 
   -- *** Utilities
   , defaultRoutingErrorResponse
+  , mkBadRequest
 
 
   -- * 'Context's
@@ -119,7 +120,8 @@ orElse sa sb = Server $ do
   case a of
     RoutingError e
       | Error.ignorable e -> runServer sb
-      | otherwise -> restore ctx >> return a
+      | otherwise ->
+          restore ctx >> maybe a RoutingError <$> getError
     _ -> restore ctx >> return a
 
 -- | A 'Server' which immediately fails with a 'Error.NotFound' error
@@ -136,6 +138,9 @@ methodNotAllowed verbs =
 badRequest :: Monad m => Maybe String -> Server m
 badRequest err = Server (return (RoutingError (Error.BadRequest err)))
 
+mkBadRequest :: Maybe String -> Error.RoutingError
+mkBadRequest = Error.BadRequest
+
 -- | Converts a @'Server' 'IO'@ into a regular Wai 'Application' value.
 serverApplication :: Server IO -> Application
 serverApplication server = serverApplication' server (const id)
@@ -148,7 +153,9 @@ serverApplication' :: Server IO -> (Context -> Response -> Response) -> Applicat
 serverApplication' server xform = do
   serverApplication'' server $ \ctx res ->
     case res of
-      RoutingError err -> xform ctx (defaultRoutingErrorResponse err)
+      RoutingError err -> do
+        let err' = fromMaybe err (ctxError ctx)
+        xform ctx (defaultRoutingErrorResponse err')
       WaiResponse resp -> xform ctx resp
       _ -> error "Recieved 'Application' value in 'serverApplication'' impl"
 
@@ -205,7 +212,7 @@ data ServerResult
 
 class Contextual m where
   -- | Run a computation with the current state and return it without
-  -- affecting ongoing state in this thread.
+  -- affecting ongoing state in this thread, save for persisting previous ctxError
   fork :: m a -> m (a, Context)
 
   -- | Restore a 'Context'.
@@ -242,6 +249,13 @@ class Contextual m where
   getBody
     :: forall a (ts :: [*])
     . AllMimeDecode a ts => Sing ts -> m (Either String a)
+
+  -- | caches a routing error that may or may not be used as the server result
+  setError :: RoutingError -> m ()
+
+  -- | Gets cached routing error
+  getError :: m (Maybe RoutingError)
+
 
 -- | (internal) gets the raw header data
 getHeaderRaw
@@ -287,7 +301,7 @@ declareQuery s = do
 instance Monad m => Contextual (StateT Context m) where
   fork m = StateT $ \ctx -> do
     (a, newCtx) <- runStateT m ctx
-    return ((a, newCtx), ctx)
+    return ((a, newCtx), ctx{ ctxError = ctxError newCtx })
 
   restore = put
 
@@ -320,7 +334,7 @@ instance Monad m => Contextual (StateT Context m) where
   expectHeader s expected = do
     declareHeader s (Just expected)
     mayVal <- fmap (fmap Text.decodeUtf8) (getHeaderRaw s)
-    return (maybe False (== expected) mayVal)
+    return ((== Just expected) mayVal)
 
   getQuery s = do
     declareQuery s
@@ -337,6 +351,9 @@ instance Monad m => Contextual (StateT Context m) where
           NegotiatedDecode a -> Right a
           NegotiatedDecodeError err -> Left ("body decode error: " ++ err)
           DecodeNegotiationFailure mt -> Left ("could not negotiate: " ++ show mt)
+
+  setError err = modify $ \ctx -> ctx { ctxError = Just err}
+  getError = gets ctxError
 
 hush :: Either e a -> Maybe a
 hush (Left _) = Nothing
@@ -378,6 +395,9 @@ data Context =
     -- partial and lazy body loading, BUT the style of API description
     -- we're talking about here isn't really amenable to that sort of thing
     -- anyway.
+  , ctxError        :: Maybe RoutingError
+    -- ^ A routing Error that may be used as the server resulting error
+    -- Its cached across state restores
   }
 
 -- | Construct a fresh context from a 'Request'. Fully captures the
@@ -399,6 +419,7 @@ makeContext theRequest = do
                  , ctxHeaderAccess = Map.empty
                  , ctxQueryAccess = []
                  , ctxBody = Sl.toStrict theBody
+                 , ctxError = Nothing
                  }
 
 -- | (internal) Converts a case insensitive bytestring to a case
